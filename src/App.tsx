@@ -801,7 +801,7 @@ export default function App() {
           </div>
         </div>
 
-{{/* Guild Quests */}
+{/* Guild Quests */}
 <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
   <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
     <Target className="text-green-400" size={24} />
