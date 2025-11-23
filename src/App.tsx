@@ -1,11 +1,182 @@
-import React, { useState, useEffect } from 'react';
-import { Trophy, Target, Calendar, Edit2, Check, X, BarChart3, Download, Upload, ChevronDown, ChevronUp, AlertTriangle, Info, ExternalLink, BookOpen, Gamepad2, MessageCircle, HelpCircle } from 'lucide-react';
-import './styles/quests.css';
-const GOOGLE_DOC_URL =
-  (import.meta.env?.VITE_GOOGLE_DOC_URL as string) ||
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Trophy, Target, Calendar, Edit2, Check, X, BarChart3, 
+  Download, Upload, ChevronDown, ChevronUp, AlertTriangle, 
+  Info, ExternalLink, BookOpen, Gamepad2, MessageCircle, HelpCircle 
+} from 'lucide-react';
+
+// [INSTRUCTION]: Uncomment this line for your GitHub/Vercel build
+// import './styles/quests.css';
+
+// ==========================================
+// CONFIGURATION & DATA
+// ==========================================
+
+// [INSTRUCTION]: Uncomment import.meta.env for production. Using fallback for preview.
+const GOOGLE_DOC_URL = 
+  // (import.meta.env?.VITE_GOOGLE_DOC_URL as string) || 
   "https://docs.google.com/document/d/1JyKI70T_1VAmJyUE28iiBS0fAVo-OY-PwHOSyPdxQDk/edit?tab=t.0#heading=h.61x1vaa6502e";
 
-// --- Custom Modal Component ---
+const TOWERS_DATA = [
+  { name: 'Prison Tower', points: 15, color: 'bg-pink-300' },
+  { name: 'Atlantis Tower', points: 15, color: 'bg-cyan-400' },
+  { name: 'Mezuvian Tower', points: 15, color: 'bg-red-400' },
+  { name: 'Oasis Tower', points: 15, color: 'bg-orange-300' },
+  { name: 'Aether Tower', points: 15, color: 'bg-purple-400' },
+  { name: 'Arcane Tower', points: 15, color: 'bg-pink-500' },
+  { name: 'Celestial Tower', points: 15, color: 'bg-yellow-400' }
+];
+
+const WORLDS_DATA = [
+  { 
+    num: 1, color: 'bg-slate-600',
+    bosses: ['Big Tree Guardian', 'Crab Prince', 'Dire Boarwolf'],
+    dungeons: [
+      { name: '1-1 Crabby Crusade', normal: 1, challenge: 2 },
+      { name: '1-2 Scarecrow Defense', normal: 1, challenge: 2 },
+      { name: '1-3 Dire Problem', normal: 1, challenge: 2 },
+      { name: '1-4 Kingslayer', normal: 1, challenge: 2 },
+      { name: '1-5 Gravetower Dungeon', normal: 1, challenge: 2 }
+    ]
+  },
+  { 
+    num: 2, color: 'bg-green-600',
+    bosses: ['Big Poison Flower', 'Dark Goblin Knight', 'Red Goblins'],
+    dungeons: [
+      { name: '2-1 Temple of Ruin', normal: 1, challenge: 2 },
+      { name: '2-2 Mama Trauma', normal: 1, challenge: 2 },
+      { name: '2-3 Volcano\'s Shadow', normal: 2, challenge: 3 },
+      { name: '2-4 Volcano Dungeon', normal: 2, challenge: 3 }
+    ]
+  },
+  { 
+    num: 3, color: 'bg-blue-600',
+    bosses: ['Icy Blob', 'Castle Commander', 'Dragon Protector'],
+    dungeons: [
+      { name: '3-1 Mountain Pass', normal: 2, challenge: 3 },
+      { name: '3-2 Winter Cavern', normal: 2, challenge: 3 },
+      { name: '3-3 Winter Dungeon', normal: 2, challenge: 3 }
+    ]
+  },
+  { 
+    num: 4, color: 'bg-orange-600',
+    bosses: ['Elder Golem', 'Buff Twins (Cac & Tus)', 'Fire Scorpion'],
+    dungeons: [
+      { name: '4-1 Scrap Canyon', normal: 3, challenge: 4 },
+      { name: '4-2 Deserted Burrowmine', normal: 3, challenge: 4 },
+      { name: '4-3 Pyramid Dungeon', normal: 3, challenge: 4 }
+    ]
+  },
+  { 
+    num: 5, color: 'bg-pink-600',
+    bosses: ['Great Blossom Tree', 'Blue Goblin Gatekeeper', 'Hand of Ignis'],
+    dungeons: [
+      { name: '5-1 Konoh Heartlands', normal: 3, challenge: 4 },
+      { name: '5-2 Konoh Inferno', normal: 4, challenge: 5 }
+    ]
+  },
+  { 
+    num: 6, color: 'bg-teal-600',
+    bosses: ['Whirlpool Scorpion', 'Lava Shark'],
+    dungeons: [
+      { name: '6-1 Rough Waters', normal: 4, challenge: 5 },
+      { name: '6-2 Treasure Hunt', normal: 4, challenge: 5 }
+    ]
+  },
+  { 
+    num: 7, color: 'bg-red-600',
+    bosses: ['Son of Ignis', 'Hades', 'Minotaur'],
+    dungeons: [
+      { name: '7-1 The Underworld', normal: 5, challenge: 6 },
+      { name: '7-2 The Labyrinth', normal: 5, challenge: 6 }
+    ]
+  },
+  { 
+    num: 8, color: 'bg-yellow-700',
+    bosses: ['Gargantigator', 'Ancient Emerald Guardian', 'Toa: Tree of the Ruins', 'Ruinous, Poison Dragon'],
+    dungeons: [
+      { name: '8-1 Rescue in the Ruins', normal: 5, challenge: 6 },
+      { name: '8-2 Ruin Rush', normal: 6, challenge: 7 }
+    ]
+  },
+  { 
+    num: 9, color: 'bg-purple-700',
+    bosses: ['Aether Lord', 'Giant Minotaur', 'Redwood Mammoose'],
+    dungeons: [
+      { name: '9-1 Treetop Trouble', normal: 6, challenge: 7 },
+      { name: '9-2 Aether Fortress', normal: 6, challenge: 7 }
+    ]
+  },
+  { 
+    num: 10, color: 'bg-fuchsia-800',
+    bosses: ['Crystal Assassin', 'Crystal Alpha', 'Crystal Tyrant'],
+    dungeons: [
+      { name: '10-1 Crystal Chaos', normal: 7, challenge: 8 },
+      { name: '10-2 Astral Academy', normal: 7, challenge: 8 }
+    ]
+  }
+];
+
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
+const getTodayEST = () => {
+  const now = new Date();
+  const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  if (estTime.getHours() < 17) {
+    estTime.setDate(estTime.getDate() - 1);
+  }
+  const year = estTime.getFullYear();
+  const month = String(estTime.getMonth() + 1).padStart(2, '0');
+  const day = String(estTime.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr + 'T12:00:00');
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const calculatePoints = (player) => {
+  if (!player) return 0;
+  let points = 0;
+
+  WORLDS_DATA.forEach(world => {
+    world.dungeons.forEach(dungeon => {
+      if (player.dungeons[`${dungeon.name}_normal`]) points += dungeon.normal;
+      if (player.dungeons[`${dungeon.name}_challenge`]) points += dungeon.challenge;
+    });
+  });
+
+  WORLDS_DATA.forEach(world => {
+    world.bosses.forEach((boss) => {
+      if (player.worldEvents[`world${world.num}_${boss}`]) points += 1;
+    });
+  });
+
+  TOWERS_DATA.forEach(tower => {
+    if (player.towers[tower.name]) points += 15;
+  });
+
+  if (player.infiniteTower.floor >= 150) {
+    const floorsAbove150 = player.infiniteTower.floor - 150;
+    const bossesDefeated = Math.floor(floorsAbove150 / 5);
+    points += bossesDefeated * 5;
+  }
+
+  if (player.guildQuests.easy) points += 25;
+  if (player.guildQuests.medium) points += 50;
+  if (player.guildQuests.hard) points += 100;
+
+  return points;
+};
+
+// ==========================================
+// SUB-COMPONENTS
+// ==========================================
+
 const CustomModal = ({ isOpen, type, title, message, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
@@ -25,26 +196,11 @@ const CustomModal = ({ isOpen, type, title, message, onConfirm, onCancel }) => {
           <div className="flex gap-3">
             {type === 'confirm' ? (
               <>
-                <button
-                  onClick={onConfirm}
-                  className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={onCancel}
-                  className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
+                <button onClick={onConfirm} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors">Confirm</button>
+                <button onClick={onCancel} className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors">Cancel</button>
               </>
             ) : (
-              <button
-                onClick={onCancel}
-                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-              >
-                Okay
-              </button>
+              <button onClick={onCancel} className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors">Okay</button>
             )}
           </div>
         </div>
@@ -53,11 +209,9 @@ const CustomModal = ({ isOpen, type, title, message, onConfirm, onCancel }) => {
   );
 };
 
-// --- Landing Page Component ---
 const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
-      {/* Background Ambient Effects */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-yellow-600/10 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px]" />
@@ -65,7 +219,6 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
 
       <div className="max-w-4xl w-full z-10 space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
         
-        {/* Hero Section */}
         <div className="text-center space-y-4">
           <div className="inline-flex items-center justify-center p-3 bg-yellow-500/10 rounded-full mb-4 ring-1 ring-yellow-500/30">
             <Trophy className="text-yellow-400" size={48} />
@@ -78,7 +231,6 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
           </p>
         </div>
 
-        {/* Action Card */}
         <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="grid md:grid-cols-2 gap-8 items-center">
             <div className="space-y-6">
@@ -100,12 +252,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
                     placeholder="Roblox Username"
                     className="flex-1 bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 transition-all"
                   />
-                  <button
-                    onClick={onEnter}
-                    className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl transition-all transform hover:scale-105 active:scale-95"
-                  >
-                    Enter
-                  </button>
+                  <button onClick={onEnter} className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl transition-all transform hover:scale-105 active:scale-95">Enter</button>
                 </div>
               </div>
 
@@ -115,19 +262,13 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
               </div>
             </div>
 
-            {/* Resources Links */}
             <div className="space-y-3">
               <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
                 <BookOpen size={20} className="text-purple-400" />
                 Official Resources
               </h3>
               
-              <a 
-                href="https://discord.gg/RRvcg9hMwK" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-4 bg-[#5865F2]/10 hover:bg-[#5865F2]/20 border border-[#5865F2]/30 rounded-xl group transition-all"
-              >
+              <a href="https://discord.gg/RRvcg9hMwK" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-[#5865F2]/10 hover:bg-[#5865F2]/20 border border-[#5865F2]/30 rounded-xl group transition-all">
                 <div className="flex items-center gap-3">
                   <MessageCircle className="text-[#5865F2]" size={24} />
                   <div className="text-left">
@@ -138,12 +279,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
                 <ExternalLink size={16} className="text-[#5865F2] opacity-0 group-hover:opacity-100 transition-all" />
               </a>
 
-              <a 
-                href="https://www.roblox.com/games/2727067538/World-Zero-Anime-RPG" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl group transition-all"
-              >
+              <a href="https://www.roblox.com/games/2727067538/World-Zero-Anime-RPG" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl group transition-all">
                 <div className="flex items-center gap-3">
                   <Gamepad2 className="text-red-500" size={24} />
                   <div className="text-left">
@@ -154,13 +290,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
                 <ExternalLink size={16} className="text-red-500 opacity-0 group-hover:opacity-100 transition-all" />
               </a>
 
-              {/* UPDATE THIS LINK: Paste the actual Google Doc URL below in the href */}
-              <a 
-                href={GOOGLE_DOC_URL} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-4 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl group transition-all"
-              >
+              <a href={GOOGLE_DOC_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl group transition-all">
                 <div className="flex items-center gap-3">
                   <BookOpen className="text-blue-500" size={24} />
                   <div className="text-left">
@@ -182,6 +312,259 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
     </div>
   );
 };
+
+const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit }) => (
+  <div className="bg-gradient-to-r from-yellow-900/20 via-orange-900/20 to-red-900/20 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-2xl border border-yellow-500/30">
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
+          <Trophy className="text-yellow-400 shrink-0" size={32} />
+          <span className="break-all">{currentPlayer.name}</span>
+        </h1>
+        <p className="text-yellow-200 text-sm opacity-80 pl-1">
+          Season {currentSeason} • {formatDate(selectedDate)}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setView('landing')} className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-all flex items-center gap-2 text-sm border border-white/10">
+          Back to Home
+        </button>
+        <button onClick={() => setShowAnalytics(true)} className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-purple-600/20">
+          <BarChart3 size={18} /> Analytics
+        </button>
+        <button onClick={() => setShowCalendar(true)} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20">
+          <Calendar size={18} /> Calendar
+        </button>
+        <button onClick={() => setShowImportExport(true)} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-600/20">
+          <Download size={18} /> Backup
+        </button>
+      </div>
+    </div>
+    
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white/5 rounded-xl p-4 sm:col-span-2 border border-white/10 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
+        <div className="text-gray-300 text-sm mb-1">Today's Points</div>
+        <div className={`text-4xl font-black tracking-tight ${myPoints >= 300 ? 'text-green-400' : 'text-yellow-400'}`}>
+          {myPoints}
+          <span className="text-xl text-gray-500 font-normal ml-2">/ 300</span>
+        </div>
+        <div className="mt-3 bg-gray-800 rounded-full h-3 overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all duration-500 ease-out ${myPoints >= 300 ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`}
+            style={{ width: `${Math.min((myPoints / 300) * 100, 100)}%` }}
+          />
+        </div>
+        {selectedDate !== getTodayEST() && (
+          <button onClick={() => startEdit(selectedDate, myPoints)} className="mt-4 w-full px-3 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/30 text-orange-300 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
+            <Edit2 size={16} /> Manual Override
+          </button>
+        )}
+      </div>
+      <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl p-4 border border-blue-500/20 flex flex-col justify-center">
+        <div className="text-gray-400 text-sm mb-1">Total Season Points</div>
+        <div className="text-3xl font-bold text-blue-400">{totalPoints}</div>
+      </div>
+      <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20 flex flex-col justify-center">
+        <div className="text-gray-400 text-sm mb-1">Daily Average</div>
+        <div className="text-3xl font-bold text-green-400">{avgPoints}</div>
+      </div>
+    </div>
+  </div>
+);
+
+const GuildQuestSection = ({ currentPlayer, updateCompletion }) => (
+  <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
+    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+      <Target className="text-green-400" size={24} />
+      Guild Quests (175 pts total)
+    </h2>
+
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <label className="quest-card easy flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all bg-green-500/10 hover:bg-green-500/20 border border-green-500/40">
+        <div className="relative flex items-center">
+          <input
+            type="checkbox"
+            checked={currentPlayer.guildQuests.easy}
+            onChange={(e) => updateCompletion("guildQuests", null, { easy: e.target.checked })}
+            className="peer w-6 h-6 rounded border-2 border-gray-500 checked:border-transparent checked:bg-blue-500 transition-all appearance-none cursor-pointer"
+          />
+          <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={14} />
+        </div>
+        <div>
+          <div className="text-white font-semibold">Easy Quest</div>
+          <div className="quest-subtext text-green-400 text-sm font-bold">25 points</div>
+        </div>
+      </label>
+
+      <label className="quest-card medium flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/40">
+        <div className="relative flex items-center">
+          <input
+            type="checkbox"
+            checked={currentPlayer.guildQuests.medium}
+            onChange={(e) => updateCompletion("guildQuests", null, { medium: e.target.checked })}
+            className="peer w-6 h-6 rounded border-2 border-gray-500 checked:border-transparent checked:bg-blue-500 transition-all appearance-none cursor-pointer"
+          />
+          <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={14} />
+        </div>
+        <div>
+          <div className="text-white font-semibold">Medium Quest</div>
+          <div className="quest-subtext text-yellow-400 text-sm font-bold">50 points</div>
+        </div>
+      </label>
+
+      <label className="quest-card hard flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all bg-red-500/10 hover:bg-red-500/20 border border-red-500/40">
+        <div className="relative flex items-center">
+          <input
+            type="checkbox"
+            checked={currentPlayer.guildQuests.hard}
+            onChange={(e) => updateCompletion("guildQuests", null, { hard: e.target.checked })}
+            className="peer w-6 h-6 rounded border-2 border-gray-500 checked:border-transparent checked:bg-blue-500 transition-all appearance-none cursor-pointer"
+          />
+          <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={14} />
+        </div>
+        <div>
+          <div className="text-white font-semibold">Hard Quest</div>
+          <div className="quest-subtext text-red-400 text-sm font-bold">100 points</div>
+        </div>
+      </label>
+    </div>
+  </div>
+);
+
+const TowerSection = ({ currentPlayer, updateCompletion }) => (
+  <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
+    <h2 className="text-xl font-bold text-white mb-4">Towers (15 pts each)</h2>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+      {TOWERS_DATA.map(tower => (
+        <label key={tower.name} className={`relative group overflow-hidden quest-card flex items-center gap-3 ${tower.color} bg-opacity-10 rounded-xl p-3 cursor-pointer hover:bg-opacity-20 transition-all border border-white/10`}>
+          <div className="relative flex items-center">
+            <input
+              type="checkbox"
+              checked={currentPlayer.towers[tower.name] || false}
+              onChange={(e) => updateCompletion('towers', tower.name, e.target.checked)}
+              className="peer w-5 h-5 rounded border-2 border-white/30 checked:border-transparent checked:bg-purple-500 transition-all appearance-none cursor-pointer"
+            />
+            <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={12} />
+          </div>
+          <div className="z-10">
+            <div className="text-white font-medium text-sm">{tower.name}</div>
+            <div className="text-gray-400 text-xs">15 points</div>
+          </div>
+        </label>
+      ))}
+    </div>
+
+    <div className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-xl p-6 border border-purple-500/30">
+      <div className="text-white font-semibold mb-4 text-lg flex items-center gap-2">
+        <Target className="text-purple-400" size={20} />
+        Infinite Tower Calculator
+      </div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+        <div className="flex-1 w-full">
+          <label className="text-purple-200 text-sm mb-2 block">Highest Floor Reached</label>
+          <div className="relative">
+            <input
+              type="number"
+              value={currentPlayer.infiniteTower.floor}
+              onChange={(e) => updateCompletion('infiniteTower', null, { floor: parseInt(e.target.value) || 0 })}
+              placeholder="150"
+              className="w-full px-4 py-4 rounded-xl bg-black/40 border border-purple-500/30 text-white text-xl font-mono focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-400/50 text-sm font-mono">FLOOR</div>
+          </div>
+        </div>
+        <div className="bg-black/40 rounded-xl p-4 border border-purple-400/30 min-w-[150px] text-center">
+          <div className="text-purple-300 text-xs mb-1 uppercase tracking-wider">Points Earned</div>
+          <div className="text-4xl font-black text-purple-400">
+            {currentPlayer.infiniteTower.floor >= 150 
+              ? Math.floor((currentPlayer.infiniteTower.floor - 150) / 5) * 5
+              : 0}
+          </div>
+          <div className="text-xs text-purple-400/60 mt-1">5 pts per 5 floors ({'>'}150)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const WorldGrid = ({ currentPlayer, updateCompletion, collapsedWorlds, toggleWorld }) => (
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    {WORLDS_DATA.map(world => (
+      <div key={world.num} className={(world.num === 1 ? 'bg-slate-600' : world.num === 2 ? 'bg-green-600' : world.num === 3 ? 'bg-blue-600' : world.num === 4 ? 'bg-orange-600' : world.num === 5 ? 'bg-pink-600' : world.num === 6 ? 'bg-teal-600' : world.num === 7 ? 'bg-red-600' : world.num === 8 ? 'bg-yellow-700' : world.num === 9 ? 'bg-purple-700' : 'bg-fuchsia-800') + ' bg-opacity-10 backdrop-blur-lg rounded-2xl shadow-lg border border-white/10 overflow-hidden transition-all hover:border-white/20'}>
+        <div 
+          onClick={() => toggleWorld(world.num)}
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className={(world.num === 1 ? 'bg-slate-600' : world.num === 2 ? 'bg-green-600' : world.num === 3 ? 'bg-blue-600' : world.num === 4 ? 'bg-orange-600' : world.num === 5 ? 'bg-pink-600' : world.num === 6 ? 'bg-teal-600' : world.num === 7 ? 'bg-red-600' : world.num === 8 ? 'bg-yellow-700' : world.num === 9 ? 'bg-purple-700' : 'bg-fuchsia-800') + ' w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white shadow-lg'}>
+              {world.num}
+            </div>
+            <h3 className="text-lg font-bold text-white">World {world.num}</h3>
+          </div>
+          {collapsedWorlds[world.num] ? <ChevronDown size={20} className="text-white/50" /> : <ChevronUp size={20} className="text-white/50" />}
+        </div>
+
+        {!collapsedWorlds[world.num] && (
+          <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
+            <div className="bg-black/20 rounded-xl p-4 mb-3">
+              <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-3">Bosses (1 pt each)</div>
+              <div className="flex flex-wrap gap-2">
+                {world.bosses.map((boss) => (
+                  <label key={boss} className="flex items-center gap-2 cursor-pointer bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 border border-white/5 transition-colors">
+                    <div className="relative flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={currentPlayer.worldEvents[`world${world.num}_${boss}`] || false}
+                        onChange={(e) => updateCompletion('worldEvents', `world${world.num}_${boss}`, e.target.checked)}
+                        className="peer w-4 h-4 rounded border border-white/30 checked:border-transparent checked:bg-green-500 transition-all appearance-none cursor-pointer"
+                      />
+                      <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={10} />
+                    </div>
+                    <span className="text-gray-200 text-sm">{boss}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {world.dungeons.map(dungeon => (
+                <div key={dungeon.name} className="bg-black/20 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-white text-sm font-medium pl-1">{dungeon.name}</div>
+                  <div className="flex gap-2">
+                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${currentPlayer.dungeons[`${dungeon.name}_normal`] ? 'bg-blue-500/20 border-blue-500/50 text-blue-200' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>
+                      <input
+                        type="checkbox"
+                        checked={currentPlayer.dungeons[`${dungeon.name}_normal`] || false}
+                        onChange={(e) => updateCompletion('dungeons', `${dungeon.name}_normal`, e.target.checked)}
+                        className="hidden"
+                      />
+                      Normal ({dungeon.normal}pt)
+                    </label>
+                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${currentPlayer.dungeons[`${dungeon.name}_challenge`] ? 'bg-orange-500/20 border-orange-500/50 text-orange-200' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>
+                      <input
+                        type="checkbox"
+                        checked={currentPlayer.dungeons[`${dungeon.name}_challenge`] || false}
+                        onChange={(e) => updateCompletion('dungeons', `${dungeon.name}_challenge`, e.target.checked)}
+                        className="hidden"
+                      />
+                      Chall. ({dungeon.challenge}pts)
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+);
+
+// ==========================================
+// MAIN APP COMPONENT
+// ==========================================
 
 export default function App() {
   // --- State ---
@@ -225,18 +608,6 @@ export default function App() {
     });
   };
 
-  const getTodayEST = () => {
-    const now = new Date();
-    const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    if (estTime.getHours() < 17) {
-      estTime.setDate(estTime.getDate() - 1);
-    }
-    const year = estTime.getFullYear();
-    const month = String(estTime.getMonth() + 1).padStart(2, '0');
-    const day = String(estTime.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const getSeasonDates = () => {
     const dates = [];
     let startDate;
@@ -263,168 +634,14 @@ export default function App() {
     return dates;
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr + 'T12:00:00');
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  // --- Data Structures ---
-  const worlds = [
-    { 
-      num: 1, 
-      color: 'bg-slate-600',
-      bosses: ['Big Tree Guardian', 'Crab Prince', 'Dire Boarwolf'],
-      dungeons: [
-        { name: '1-1 Crabby Crusade', normal: 1, challenge: 2 },
-        { name: '1-2 Scarecrow Defense', normal: 1, challenge: 2 },
-        { name: '1-3 Dire Problem', normal: 1, challenge: 2 },
-        { name: '1-4 Kingslayer', normal: 1, challenge: 2 },
-        { name: '1-5 Gravetower Dungeon', normal: 1, challenge: 2 }
-      ]
-    },
-    { 
-      num: 2, 
-      color: 'bg-green-600',
-      bosses: ['Big Poison Flower', 'Dark Goblin Knight', 'Red Goblins'],
-      dungeons: [
-        { name: '2-1 Temple of Ruin', normal: 1, challenge: 2 },
-        { name: '2-2 Mama Trauma', normal: 1, challenge: 2 },
-        { name: '2-3 Volcano\'s Shadow', normal: 2, challenge: 3 },
-        { name: '2-4 Volcano Dungeon', normal: 2, challenge: 3 }
-      ]
-    },
-    { 
-      num: 3, 
-      color: 'bg-blue-600',
-      bosses: ['Icy Blob', 'Castle Commander', 'Dragon Protector'],
-      dungeons: [
-        { name: '3-1 Mountain Pass', normal: 2, challenge: 3 },
-        { name: '3-2 Winter Cavern', normal: 2, challenge: 3 },
-        { name: '3-3 Winter Dungeon', normal: 2, challenge: 3 }
-      ]
-    },
-    { 
-      num: 4, 
-      color: 'bg-orange-600',
-      bosses: ['Elder Golem', 'Buff Twins (Cac & Tus)', 'Fire Scorpion'],
-      dungeons: [
-        { name: '4-1 Scrap Canyon', normal: 3, challenge: 4 },
-        { name: '4-2 Deserted Burrowmine', normal: 3, challenge: 4 },
-        { name: '4-3 Pyramid Dungeon', normal: 3, challenge: 4 }
-      ]
-    },
-    { 
-      num: 5, 
-      color: 'bg-pink-600',
-      bosses: ['Great Blossom Tree', 'Blue Goblin Gatekeeper', 'Hand of Ignis'],
-      dungeons: [
-        { name: '5-1 Konoh Heartlands', normal: 3, challenge: 4 },
-        { name: '5-2 Konoh Inferno', normal: 4, challenge: 5 }
-      ]
-    },
-    { 
-      num: 6, 
-      color: 'bg-teal-600',
-      bosses: ['Whirlpool Scorpion', 'Lava Shark'],
-      dungeons: [
-        { name: '6-1 Rough Waters', normal: 4, challenge: 5 },
-        { name: '6-2 Treasure Hunt', normal: 4, challenge: 5 }
-      ]
-    },
-    { 
-      num: 7, 
-      color: 'bg-red-600',
-      bosses: ['Son of Ignis', 'Hades', 'Minotaur'],
-      dungeons: [
-        { name: '7-1 The Underworld', normal: 5, challenge: 6 },
-        { name: '7-2 The Labyrinth', normal: 5, challenge: 6 }
-      ]
-    },
-    { 
-      num: 8, 
-      color: 'bg-yellow-700',
-      bosses: ['Gargantigator', 'Ancient Emerald Guardian', 'Toa: Tree of the Ruins', 'Ruinous, Poison Dragon'],
-      dungeons: [
-        { name: '8-1 Rescue in the Ruins', normal: 5, challenge: 6 },
-        { name: '8-2 Ruin Rush', normal: 6, challenge: 7 }
-      ]
-    },
-    { 
-      num: 9, 
-      color: 'bg-purple-700',
-      bosses: ['Aether Lord', 'Giant Minotaur', 'Redwood Mammoose'],
-      dungeons: [
-        { name: '9-1 Treetop Trouble', normal: 6, challenge: 7 },
-        { name: '9-2 Aether Fortress', normal: 6, challenge: 7 }
-      ]
-    },
-    { 
-      num: 10, 
-      color: 'bg-fuchsia-800',
-      bosses: ['Crystal Assassin', 'Crystal Alpha', 'Crystal Tyrant'],
-      dungeons: [
-        { name: '10-1 Crystal Chaos', normal: 7, challenge: 8 },
-        { name: '10-2 Astral Academy', normal: 7, challenge: 8 }
-      ]
-    }
-  ];
-
-  const towers = [
-    { name: 'Prison Tower', points: 15, color: 'bg-pink-300' },
-    { name: 'Atlantis Tower', points: 15, color: 'bg-cyan-400' },
-    { name: 'Mezuvian Tower', points: 15, color: 'bg-red-400' },
-    { name: 'Oasis Tower', points: 15, color: 'bg-orange-300' },
-    { name: 'Aether Tower', points: 15, color: 'bg-purple-400' },
-    { name: 'Arcane Tower', points: 15, color: 'bg-pink-500' },
-    { name: 'Celestial Tower', points: 15, color: 'bg-yellow-400' }
-  ];
-
-  const calculatePoints = (player) => {
-    if (!player) return 0;
-    let points = 0;
-
-    worlds.forEach(world => {
-      world.dungeons.forEach(dungeon => {
-        if (player.dungeons[`${dungeon.name}_normal`]) points += dungeon.normal;
-        if (player.dungeons[`${dungeon.name}_challenge`]) points += dungeon.challenge;
-      });
-    });
-
-    worlds.forEach(world => {
-      world.bosses.forEach((boss) => {
-        if (player.worldEvents[`world${world.num}_${boss}`]) points += 1;
-      });
-    });
-
-    towers.forEach(tower => {
-      if (player.towers[tower.name]) points += 15;
-    });
-
-    if (player.infiniteTower.floor >= 150) {
-      const floorsAbove150 = player.infiniteTower.floor - 150;
-      const bossesDefeated = Math.floor(floorsAbove150 / 5);
-      points += bossesDefeated * 5;
-    }
-
-    if (player.guildQuests.easy) points += 25;
-    if (player.guildQuests.medium) points += 50;
-    if (player.guildQuests.hard) points += 100;
-
-    return points;
-  };
-
   // --- Effects ---
   useEffect(() => {
     setSelectedDate(getTodayEST());
   }, []);
 
   useEffect(() => {
-    // Load initial data
     const storedName = localStorage.getItem('hyyerr_player_name');
-    if (storedName) {
-      setPlayerName(storedName);
-    }
+    if (storedName) setPlayerName(storedName);
 
     const storedSeason = localStorage.getItem('hyyerr_current_season');
     if (storedSeason) setCurrentSeason(parseInt(storedSeason));
@@ -493,18 +710,14 @@ export default function App() {
   // --- Handlers ---
   const initializePlayer = () => {
     if (!playerName.trim()) return;
-    
     const name = playerName.trim();
     localStorage.setItem('hyyerr_player_name', name);
-    
     const today = getTodayEST();
     const stored = localStorage.getItem(`hyyerr_player_${today}`);
     if (stored) {
       try {
         setCurrentPlayer(JSON.parse(stored));
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     } else {
       const newPlayer = {
         name,
@@ -516,7 +729,6 @@ export default function App() {
       };
       setCurrentPlayer(newPlayer);
     }
-    // Switch to tracker view
     setView('tracker');
   };
 
@@ -562,7 +774,6 @@ export default function App() {
         setHistory(updatedHistory);
         localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
         localStorage.removeItem(`hyyerr_player_${dateToDelete}`);
-        
         if (notes[dateToDelete]) {
           const updatedNotes = { ...notes };
           delete updatedNotes[dateToDelete];
@@ -582,7 +793,6 @@ export default function App() {
         const histStr = localStorage.getItem(`hyyerr_points_history_${seasonKey}`);
         const noteStr = localStorage.getItem(`hyyerr_notes_${seasonKey}`);
         const startStr = localStorage.getItem(`hyyerr_season_start_${seasonKey}`);
-        
         if (histStr || noteStr || startStr) {
           exportObj.seasons[s] = {};
           if (histStr) exportObj.seasons[s].history = JSON.parse(histStr);
@@ -639,19 +849,6 @@ export default function App() {
   };
 
   // --- Analytics & Render Prep ---
-  const getRecentHistory = () => {
-    const seasonDates = getSeasonDates();
-    const season18Start = new Date('2024-11-14T12:00:00');
-    const today = new Date(getTodayEST() + 'T12:00:00');
-    const sortedDates = Object.keys(history)
-      .filter(date => {
-        const dateObj = new Date(date + 'T12:00:00');
-        return seasonDates.includes(date) && dateObj >= season18Start && dateObj <= today;
-      })
-      .sort().reverse();
-    return sortedDates.map(date => ({ date, points: history[date] }));
-  };
-
   const calculateAnalytics = () => {
     const seasonDates = getSeasonDates();
     const season18Start = new Date('2024-11-14T12:00:00');
@@ -680,7 +877,6 @@ export default function App() {
     const last7Days = allDates.slice(-7);
     const weeklyTotal = last7Days.reduce((sum, date) => sum + (history[date] || 0), 0);
     const weeklyAvg = last7Days.length > 0 ? Math.round(weeklyTotal / last7Days.length) : 0;
-    
     const bestDay = allDates.reduce((best, date) => (!best || history[date] > history[best]) ? date : best, null);
     
     return {
@@ -691,7 +887,6 @@ export default function App() {
   };
 
   const analytics = calculateAnalytics();
-  const recentHistory = getRecentHistory();
   const seasonDates = getSeasonDates();
   const seasonHistoryDates = Object.keys(history).filter(date => {
     const dateObj = new Date(date + 'T12:00:00');
@@ -720,320 +915,42 @@ export default function App() {
       <CustomModal {...modalConfig} />
       
       <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Header Card */}
-        <div className="bg-gradient-to-r from-yellow-900/20 via-orange-900/20 to-red-900/20 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-2xl border border-yellow-500/30">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div className="flex flex-col gap-2">
-               {/* Fixed spacing for descenders like 'y', 'g', 'j' */}
-              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
-                <Trophy className="text-yellow-400 shrink-0" size={32} />
-                <span className="break-all">{currentPlayer.name}</span>
-              </h1>
-              <p className="text-yellow-200 text-sm opacity-80 pl-1">
-                Season {currentSeason} • {formatDate(selectedDate)}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-               <button
-                onClick={() => setView('landing')}
-                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-all flex items-center gap-2 text-sm border border-white/10"
-              >
-                Back to Home
-              </button>
-              <button
-                onClick={() => setShowAnalytics(true)}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-purple-600/20"
-              >
-                <BarChart3 size={18} />
-                Analytics
-              </button>
-              <button
-                onClick={() => setShowCalendar(true)}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20"
-              >
-                <Calendar size={18} />
-                Calendar
-              </button>
-              <button
-                onClick={() => setShowImportExport(true)}
-                className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-600/20"
-              >
-                <Download size={18} />
-                Backup
-              </button>
-            </div>
-          </div>
-          
-          {/* Scoreboard */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-white/5 rounded-xl p-4 sm:col-span-2 border border-white/10 relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
-              <div className="text-gray-300 text-sm mb-1">Today's Points</div>
-              <div className={`text-4xl font-black tracking-tight ${myPoints >= 300 ? 'text-green-400' : 'text-yellow-400'}`}>
-                {myPoints}
-                <span className="text-xl text-gray-500 font-normal ml-2">/ 300</span>
-              </div>
-              <div className="mt-3 bg-gray-800 rounded-full h-3 overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all duration-500 ease-out ${myPoints >= 300 ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`}
-                  style={{ width: `${Math.min((myPoints / 300) * 100, 100)}%` }}
-                />
-              </div>
-              {selectedDate !== getTodayEST() && (
-                <button
-                  onClick={() => startEdit(selectedDate, myPoints)}
-                  className="mt-4 w-full px-3 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/30 text-orange-300 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Edit2 size={16} />
-                  Manual Override
-                </button>
-              )}
-            </div>
-            <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl p-4 border border-blue-500/20 flex flex-col justify-center">
-              <div className="text-gray-400 text-sm mb-1">Total Season Points</div>
-              <div className="text-3xl font-bold text-blue-400">{totalPoints}</div>
-            </div>
-            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20 flex flex-col justify-center">
-              <div className="text-gray-400 text-sm mb-1">Daily Average</div>
-              <div className="text-3xl font-bold text-green-400">{avgPoints}</div>
-            </div>
-          </div>
-        </div>
-
-{/* Guild Quests */}
-<div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
-  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-    <Target className="text-green-400" size={24} />
-    Guild Quests (175 pts total)
-  </h2>
-
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-
-    {/* EASY QUEST */}
-    <label
-      className="quest-card easy flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all
-                 bg-green-500/10 hover:bg-green-500/20 border border-green-500/40"
-    >
-      <div className="relative flex items-center">
-        <input
-          type="checkbox"
-          checked={currentPlayer.guildQuests.easy}
-          onChange={(e) =>
-            updateCompletion("guildQuests", null, { easy: e.target.checked })
-          }
-          className="peer w-6 h-6 rounded border-2 border-gray-500 
-                     checked:border-transparent checked:bg-blue-500 
-                     transition-all appearance-none cursor-pointer"
+        
+        <HeaderSection 
+          currentPlayer={currentPlayer}
+          currentSeason={currentSeason}
+          selectedDate={selectedDate}
+          setView={setView}
+          setShowAnalytics={setShowAnalytics}
+          setShowCalendar={setShowCalendar}
+          setShowImportExport={setShowImportExport}
+          myPoints={myPoints}
+          totalPoints={totalPoints}
+          avgPoints={avgPoints}
+          startEdit={startEdit}
         />
-        <Check
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
-                     text-white opacity-0 peer-checked:opacity-100 pointer-events-none"
-          size={14}
+
+        <GuildQuestSection 
+          currentPlayer={currentPlayer} 
+          updateCompletion={updateCompletion} 
         />
-      </div>
 
-      <div>
-        <div className="text-white font-semibold">Easy Quest</div>
-        <div className="quest-subtext text-green-400 text-sm font-bold">
-          25 points
-        </div>
-      </div>
-    </label>
-
-    {/* MEDIUM QUEST */}
-    <label
-      className="quest-card medium flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all
-                 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/40"
-    >
-      <div className="relative flex items-center">
-        <input
-          type="checkbox"
-          checked={currentPlayer.guildQuests.medium}
-          onChange={(e) =>
-            updateCompletion("guildQuests", null, { medium: e.target.checked })
-          }
-          className="peer w-6 h-6 rounded border-2 border-gray-500 
-                     checked:border-transparent checked:bg-blue-500 
-                     transition-all appearance-none cursor-pointer"
+        <TowerSection 
+          currentPlayer={currentPlayer} 
+          updateCompletion={updateCompletion} 
         />
-        <Check
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
-                     text-white opacity-0 peer-checked:opacity-100 pointer-events-none"
-          size={14}
+
+        <WorldGrid 
+          currentPlayer={currentPlayer} 
+          updateCompletion={updateCompletion} 
+          collapsedWorlds={collapsedWorlds} 
+          toggleWorld={toggleWorld} 
         />
+
       </div>
 
-      <div>
-        <div className="text-white font-semibold">Medium Quest</div>
-        <div className="quest-subtext text-yellow-400 text-sm font-bold">
-          50 points
-        </div>
-      </div>
-    </label>
-
-    {/* HARD QUEST */}
-    <label
-      className="quest-card hard flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all
-                 bg-red-500/10 hover:bg-red-500/20 border border-red-500/40"
-    >
-      <div className="relative flex items-center">
-        <input
-          type="checkbox"
-          checked={currentPlayer.guildQuests.hard}
-          onChange={(e) =>
-            updateCompletion("guildQuests", null, { hard: e.target.checked })
-          }
-          className="peer w-6 h-6 rounded border-2 border-gray-500 
-                     checked:border-transparent checked:bg-blue-500 
-                     transition-all appearance-none cursor-pointer"
-        />
-        <Check
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
-                     text-white opacity-0 peer-checked:opacity-100 pointer-events-none"
-          size={14}
-        />
-      </div>
-
-      <div>
-        <div className="text-white font-semibold">Hard Quest</div>
-        <div className="quest-subtext text-red-400 text-sm font-bold">
-          100 points
-        </div>
-      </div>
-    </label>
-
-  </div>
-</div>
-
-        {/* Towers & Infinite */}
-        <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
-          <h2 className="text-xl font-bold text-white mb-4">Towers (15 pts each)</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-            {towers.map(tower => (
-              <label key={tower.name} className={`relative group overflow-hidden quest-card flex items-center gap-3 ${tower.color} bg-opacity-10 rounded-xl p-3 cursor-pointer hover:bg-opacity-20 transition-all border border-white/10`}>
-                 <div className="relative flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={currentPlayer.towers[tower.name] || false}
-                    onChange={(e) => updateCompletion('towers', tower.name, e.target.checked)}
-                    className="peer w-5 h-5 rounded border-2 border-white/30 checked:border-transparent checked:bg-purple-500 transition-all appearance-none cursor-pointer"
-                  />
-                  <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={12} />
-                </div>
-                <div className="z-10">
-                  <div className="text-white font-medium text-sm">{tower.name}</div>
-                  <div className="text-gray-400 text-xs">15 points</div>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          <div className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-xl p-6 border border-purple-500/30">
-            <div className="text-white font-semibold mb-4 text-lg flex items-center gap-2">
-              <Target className="text-purple-400" size={20} />
-              Infinite Tower Calculator
-            </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-              <div className="flex-1 w-full">
-                <label className="text-purple-200 text-sm mb-2 block">Highest Floor Reached</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={currentPlayer.infiniteTower.floor}
-                    onChange={(e) => updateCompletion('infiniteTower', null, { floor: parseInt(e.target.value) || 0 })}
-                    placeholder="150"
-                    className="w-full px-4 py-4 rounded-xl bg-black/40 border border-purple-500/30 text-white text-xl font-mono focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-400/50 text-sm font-mono">FLOOR</div>
-                </div>
-              </div>
-              <div className="bg-black/40 rounded-xl p-4 border border-purple-400/30 min-w-[150px] text-center">
-                <div className="text-purple-300 text-xs mb-1 uppercase tracking-wider">Points Earned</div>
-                <div className="text-4xl font-black text-purple-400">
-                  {currentPlayer.infiniteTower.floor >= 150 
-                    ? Math.floor((currentPlayer.infiniteTower.floor - 150) / 5) * 5
-                    : 0}
-                </div>
-                <div className="text-xs text-purple-400/60 mt-1">5 pts per 5 floors ({'>'}150)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Worlds Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {worlds.map(world => (
-            <div key={world.num} className={(world.num === 1 ? 'bg-slate-600' : world.num === 2 ? 'bg-green-600' : world.num === 3 ? 'bg-blue-600' : world.num === 4 ? 'bg-orange-600' : world.num === 5 ? 'bg-pink-600' : world.num === 6 ? 'bg-teal-600' : world.num === 7 ? 'bg-red-600' : world.num === 8 ? 'bg-yellow-700' : world.num === 9 ? 'bg-purple-700' : 'bg-fuchsia-800') + ' bg-opacity-10 backdrop-blur-lg rounded-2xl shadow-lg border border-white/10 overflow-hidden transition-all hover:border-white/20'}>
-              <div 
-                onClick={() => toggleWorld(world.num)}
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors select-none"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={(world.num === 1 ? 'bg-slate-600' : world.num === 2 ? 'bg-green-600' : world.num === 3 ? 'bg-blue-600' : world.num === 4 ? 'bg-orange-600' : world.num === 5 ? 'bg-pink-600' : world.num === 6 ? 'bg-teal-600' : world.num === 7 ? 'bg-red-600' : world.num === 8 ? 'bg-yellow-700' : world.num === 9 ? 'bg-purple-700' : 'bg-fuchsia-800') + ' w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white shadow-lg'}>
-                    {world.num}
-                  </div>
-                  <h3 className="text-lg font-bold text-white">World {world.num}</h3>
-                </div>
-                {collapsedWorlds[world.num] ? <ChevronDown size={20} className="text-white/50" /> : <ChevronUp size={20} className="text-white/50" />}
-              </div>
-
-              {!collapsedWorlds[world.num] && (
-                <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
-                  <div className="bg-black/20 rounded-xl p-4 mb-3">
-                    <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-3">Bosses (1 pt each)</div>
-                    <div className="flex flex-wrap gap-2">
-                      {world.bosses.map((boss) => (
-                        <label key={boss} className="flex items-center gap-2 cursor-pointer bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 border border-white/5 transition-colors">
-                           <div className="relative flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={currentPlayer.worldEvents[`world${world.num}_${boss}`] || false}
-                              onChange={(e) => updateCompletion('worldEvents', `world${world.num}_${boss}`, e.target.checked)}
-                              className="peer w-4 h-4 rounded border border-white/30 checked:border-transparent checked:bg-green-500 transition-all appearance-none cursor-pointer"
-                            />
-                            <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" size={10} />
-                          </div>
-                          <span className="text-gray-200 text-sm">{boss}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {world.dungeons.map(dungeon => (
-                      <div key={dungeon.name} className="bg-black/20 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="text-white text-sm font-medium pl-1">{dungeon.name}</div>
-                        <div className="flex gap-2">
-                          <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${currentPlayer.dungeons[`${dungeon.name}_normal`] ? 'bg-blue-500/20 border-blue-500/50 text-blue-200' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>
-                            <input
-                              type="checkbox"
-                              checked={currentPlayer.dungeons[`${dungeon.name}_normal`] || false}
-                              onChange={(e) => updateCompletion('dungeons', `${dungeon.name}_normal`, e.target.checked)}
-                              className="hidden"
-                            />
-                            Normal ({dungeon.normal}pt)
-                          </label>
-                          <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${currentPlayer.dungeons[`${dungeon.name}_challenge`] ? 'bg-orange-500/20 border-orange-500/50 text-orange-200' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>
-                            <input
-                              type="checkbox"
-                              checked={currentPlayer.dungeons[`${dungeon.name}_challenge`] || false}
-                              onChange={(e) => updateCompletion('dungeons', `${dungeon.name}_challenge`, e.target.checked)}
-                              className="hidden"
-                            />
-                            Chall. ({dungeon.challenge}pts)
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {/* Modals */}
+      
       {/* Edit Modal */}
       {editingDate && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
@@ -1049,19 +966,11 @@ export default function App() {
               autoFocus
             />
             <div className="flex gap-3">
-              <button
-                onClick={saveEdit}
-                className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2 font-semibold"
-              >
-                <Check size={18} />
-                Save
+              <button onClick={saveEdit} className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2 font-semibold">
+                <Check size={18} /> Save
               </button>
-              <button
-                onClick={cancelEdit}
-                className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold"
-              >
-                <X size={18} />
-                Cancel
+              <button onClick={cancelEdit} className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold">
+                <X size={18} /> Cancel
               </button>
             </div>
           </div>
@@ -1078,7 +987,6 @@ export default function App() {
                 <X size={24} />
               </button>
             </div>
-
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto pr-2 custom-scrollbar">
               {getSeasonDates().reverse().map(date => (
                 <button
@@ -1137,37 +1045,31 @@ export default function App() {
                 <X size={24} />
               </button>
             </div>
-
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Goal Completion</div>
                 <div className="text-4xl font-bold text-green-400">{analytics.goalPercentage}%</div>
                 <div className="text-xs text-green-400/60 mt-2">Days with 300+ pts</div>
               </div>
-
               <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl p-5 border border-orange-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Current Streak</div>
                 <div className="text-4xl font-bold text-orange-400">{analytics.currentStreak}</div>
                 <div className="text-xs text-orange-400/60 mt-2">Consecutive days</div>
               </div>
-
               <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-5 border border-blue-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Weekly Avg</div>
                 <div className="text-4xl font-bold text-blue-400">{analytics.weeklyAvg}</div>
                 <div className="text-xs text-blue-400/60 mt-2">Last 7 Days</div>
               </div>
-
               <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-5 border border-yellow-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Total Score</div>
                 <div className="text-4xl font-bold text-yellow-400">{totalPoints}</div>
               </div>
-
               <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-5 border border-purple-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Best Day</div>
                 <div className="text-4xl font-bold text-purple-400">{analytics.bestDayPoints}</div>
                 <div className="text-xs text-purple-400/60 mt-2">{analytics.bestDay ? formatDate(analytics.bestDay) : 'No Data'}</div>
               </div>
-
               <div className="bg-gradient-to-br from-teal-500/20 to-green-500/20 rounded-xl p-5 border border-teal-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
                 <div className="text-4xl font-bold text-teal-400">{avgPoints}</div>
