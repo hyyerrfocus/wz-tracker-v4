@@ -820,23 +820,30 @@ export default function App() {
     if (storedName) setPlayerName(storedName);
 
     const storedSeason = localStorage.getItem('hyyerr_current_season');
-    if (storedSeason) setCurrentSeason(parseInt(storedSeason));
+    const season = storedSeason ? parseInt(storedSeason) : 18;
+    if (storedSeason) setCurrentSeason(season);
 
-    const seasonKey = `season${storedSeason || 18}`;
-    const storedStartDate = localStorage.getItem(`hyyerr_season_start_${seasonKey}`);
-    if (storedStartDate) {
-      setSeasonStartDate(storedStartDate);
-    } else if ((storedSeason || 18) === 18) {
-      const defaultSeason18Start = '2024-11-14';
-      setSeasonStartDate(defaultSeason18Start);
-      localStorage.setItem(`hyyerr_season_start_season18`, defaultSeason18Start);
-    }
+    const seasonKey = `season${season}`;
     
+    // Load history FIRST before anything else
     const storedHistory = localStorage.getItem(`hyyerr_points_history_${seasonKey}`);
     if (storedHistory) {
       try {
-        setHistory(JSON.parse(storedHistory));
-      } catch (e) { console.error(e); }
+        const parsedHistory = JSON.parse(storedHistory);
+        setHistory(parsedHistory);
+      } catch (e) { 
+        console.error('Error loading history:', e); 
+        setHistory({});
+      }
+    }
+    
+    const storedStartDate = localStorage.getItem(`hyyerr_season_start_${seasonKey}`);
+    if (storedStartDate) {
+      setSeasonStartDate(storedStartDate);
+    } else if (season === 18) {
+      const defaultSeason18Start = '2024-11-14';
+      setSeasonStartDate(defaultSeason18Start);
+      localStorage.setItem(`hyyerr_season_start_season18`, defaultSeason18Start);
     }
 
     const storedNotes = localStorage.getItem(`hyyerr_notes_${seasonKey}`);
@@ -970,19 +977,17 @@ export default function App() {
       const seasonKey = `season${currentSeason}`;
       const newPoints = parseInt(editValue) || 0;
       const updatedHistory = { ...history, [editingDate]: newPoints };
+      
+      // Update state immediately
       setHistory(updatedHistory);
+      
+      // Save to localStorage
       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
       
-      // Also update the display if we're currently viewing this date
-      if (selectedDate === editingDate) {
-        // Force a recalculation by reloading from history
-        const stored = localStorage.getItem(`hyyerr_player_${editingDate}`);
-        if (stored) {
-          setCurrentPlayer(JSON.parse(stored));
-        }
-      }
-      
+      // Clear edit state
       setEditingDate(null);
+      setEditValue('');
+      
       showModal('Success', 'Points updated successfully!', 'info');
     }
   };
@@ -1130,9 +1135,14 @@ export default function App() {
   
   // CRITICAL FIX: Use stored history points for past dates, calculated points only for today
   const today = getTodayEST();
-  const myPoints = selectedDate === today 
-    ? (currentPlayer ? calculatePoints(currentPlayer) : 0)
-    : (history[selectedDate] || 0);
+  const myPoints = useMemo(() => {
+    if (selectedDate === today) {
+      return currentPlayer ? calculatePoints(currentPlayer) : 0;
+    } else {
+      // For past dates, ALWAYS use history value (preserves manual overrides)
+      return history[selectedDate] || 0;
+    }
+  }, [selectedDate, currentPlayer, history, today]);
 
   // --- Main Render ---
   if (view === 'landing' || !currentPlayer) {
