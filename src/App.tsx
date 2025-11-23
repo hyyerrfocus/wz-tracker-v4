@@ -867,33 +867,29 @@ export default function App() {
       return;
     }
     
-    // Now we can safely save
+    // Now we can safely save TODAY's player checkboxes
     localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(currentPlayer));
     const points = calculatePoints(currentPlayer);
     const seasonKey = `season${currentSeason}`;
     
-    // CRITICAL: Only update history if there's NO manual override for today
-    // Manual overrides should be preserved
-    const existingPoints = history[selectedDate];
-    const updatedHistory = { ...history, [selectedDate]: points };
+    // Update history for today ONLY - never touch other dates
+    const updatedHistory = { ...history };
+    updatedHistory[selectedDate] = points;
     
-    if (existingPoints !== points) {
+    if (history[selectedDate] !== points) {
       setHistory(updatedHistory);
       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
     }
 
     // Cleanup function to save state before unmount or browser close
     const cleanupSave = () => {
-      // Double check we're still on today
       if (getTodayEST() === selectedDate && currentPlayer) {
         forceSaveCurrentState(currentPlayer);
       }
     };
 
-    // Add event listener for browser closure/reload
     window.addEventListener('beforeunload', cleanupSave);
 
-    // Return cleanup function for component unmount
     return () => {
       cleanupSave();
       window.removeEventListener('beforeunload', cleanupSave);
@@ -1135,16 +1131,25 @@ export default function App() {
   
   // CRITICAL FIX: Use stored history points for past dates, calculated points only for today
   const today = getTodayEST();
+  
   const myPoints = useMemo(() => {
     if (selectedDate === today) {
       return currentPlayer ? calculatePoints(currentPlayer) : 0;
     } else {
-      // For past dates, ALWAYS use history value (preserves manual overrides)
-      const points = history[selectedDate] || 0;
-      console.log(`Loading points for ${selectedDate}: ${points}`, history);
-      return points;
+      // For past dates, read directly from localStorage to avoid stale state
+      const seasonKey = `season${currentSeason}`;
+      const storedHistory = localStorage.getItem(`hyyerr_points_history_${seasonKey}`);
+      if (storedHistory) {
+        try {
+          const parsed = JSON.parse(storedHistory);
+          return parsed[selectedDate] || 0;
+        } catch (e) {
+          return 0;
+        }
+      }
+      return 0;
     }
-  }, [selectedDate, currentPlayer, history, today]);
+  }, [selectedDate, currentPlayer, currentSeason, today]);
 
   // --- Main Render ---
   if (view === 'landing' || !currentPlayer) {
