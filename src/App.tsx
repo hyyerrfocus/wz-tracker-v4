@@ -318,14 +318,19 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
     {isViewMode && (
       <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/40 rounded-lg flex items-center gap-2">
         <Info className="text-blue-400" size={20} />
-        <span className="text-blue-200 text-sm font-medium">Viewing past date in read-only mode. Use Manual Override to edit, or return to today to track progress.</span>
+        <span className="text-blue-200 text-sm font-medium">
+          {currentPlayer ? 
+            "Viewing past date in read-only mode. Use Manual Override to edit, or return to today to track progress." :
+            "Viewing past date with manual override only. Use Manual Override to edit the point value."
+          }
+        </span>
       </div>
     )}
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
           <Trophy className="text-yellow-400 shrink-0" size={32} />
-          <span className="break-all">{currentPlayer.name}</span>
+          <span className="break-all">{currentPlayer?.name || playerName}</span>
         </h1>
         <p className="text-yellow-200 text-sm opacity-80 pl-1">
           Season {currentSeason} • {formatDate(selectedDate)}
@@ -988,17 +993,38 @@ export default function App() {
         />
 
         <GuildQuestSection 
-          currentPlayer={currentPlayer} 
+          currentPlayer={currentPlayer || {
+            name: playerName,
+            dungeons: {},
+            worldEvents: {},
+            towers: {},
+            infiniteTower: { floor: 0 },
+            guildQuests: { easy: false, medium: false, hard: false }
+          }} 
           updateCompletion={updateCompletion} 
         />
 
         <TowerSection 
-          currentPlayer={currentPlayer} 
+          currentPlayer={currentPlayer || {
+            name: playerName,
+            dungeons: {},
+            worldEvents: {},
+            towers: {},
+            infiniteTower: { floor: 0 },
+            guildQuests: { easy: false, medium: false, hard: false }
+          }} 
           updateCompletion={updateCompletion} 
         />
 
         <WorldGrid 
-          currentPlayer={currentPlayer} 
+          currentPlayer={currentPlayer || {
+            name: playerName,
+            dungeons: {},
+            worldEvents: {},
+            towers: {},
+            infiniteTower: { floor: 0 },
+            guildQuests: { easy: false, medium: false, hard: false }
+          }} 
           updateCompletion={updateCompletion} 
           collapsedWorlds={collapsedWorlds} 
           toggleWorld={toggleWorld} 
@@ -1135,7 +1161,7 @@ export default function App() {
                   onClick={() => {
                     const today = getTodayEST();
                     
-                    // Only force save if leaving today's date
+                    // Only force save if leaving today's date and not in view mode
                     if (selectedDate === today && !isViewMode) {
                       forceSaveCurrentState();
                     }
@@ -1144,13 +1170,15 @@ export default function App() {
                     setShowCalendar(false);
                     
                     // Set view mode if not today
-                    setIsViewMode(date !== today);
+                    const isViewingPast = date !== today;
+                    setIsViewMode(isViewingPast);
                     
+                    // Only load player data if it exists OR if it's today
                     const stored = localStorage.getItem(`hyyerr_player_${date}`);
                     if (stored) {
                       setCurrentPlayer(JSON.parse(stored));
-                    } else {
-                      // Create empty player for display purposes only
+                    } else if (date === today) {
+                      // Only create new empty player for today
                       setCurrentPlayer({
                         name: playerName,
                         dungeons: {},
@@ -1159,6 +1187,9 @@ export default function App() {
                         infiniteTower: { floor: 0 },
                         guildQuests: { easy: false, medium: false, hard: false }
                       });
+                    } else {
+                      // For past dates with no data, set to null to prevent saving
+                      setCurrentPlayer(null);
                     }
                   }}
                   className={`p-3 rounded-lg border transition-all relative ${
