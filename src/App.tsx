@@ -234,7 +234,9 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
         <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="grid md:grid-cols-2 gap-8 items-center">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto pr-2 custom-scrollbar">
-              {getSeasonDates().reverse().map(date => (
+              {getSeasonDates().reverse().map(date => {
+                const datePoints = history[date] || 0;
+                return (
                 <button
                   key={date}
                   onClick={() => {
@@ -245,28 +247,21 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
                       forceSaveCurrentState();
                     }
                     
-                    // Update view mode and selected date
+                    // Update view mode and selected date FIRST
                     const isViewingPast = date !== today;
                     setIsViewMode(isViewingPast);
                     setSelectedDate(date);
-                    setShowCalendar(false);
                     
                     // Load appropriate player data
                     const stored = localStorage.getItem(`hyyerr_player_${date}`);
                     if (stored) {
-                      setCurrentPlayer(JSON.parse(stored));
-                    } else if (date === today) {
-                      // Only create new empty player for today
-                      setCurrentPlayer({
-                        name: playerName,
-                        dungeons: {},
-                        worldEvents: {},
-                        towers: {},
-                        infiniteTower: { floor: 0 },
-                        guildQuests: { easy: false, medium: false, hard: false }
-                      });
+                      try {
+                        setCurrentPlayer(JSON.parse(stored));
+                      } catch (e) {
+                        console.error('Error loading player data:', e);
+                      }
                     } else {
-                      // For past dates with no data, show empty state
+                      // For dates with no stored player data, set empty player
                       setCurrentPlayer({
                         name: playerName,
                         dungeons: {},
@@ -276,12 +271,14 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
                         guildQuests: { easy: false, medium: false, hard: false }
                       });
                     }
+                    
+                    setShowCalendar(false);
                   }}
                   className={`p-3 rounded-lg border transition-all relative ${
                     date === selectedDate
                       ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-500/50'
-                      : history[date]
-                      ? history[date] >= 300
+                      : datePoints > 0
+                      ? datePoints >= 300
                         ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20'
                         : 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'
                       : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -289,16 +286,17 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
                 >
                   <div className="text-white text-sm font-medium mb-1">{formatDate(date)}</div>
                   <div className={`text-xs font-bold ${
-                    history[date]
-                      ? history[date] >= 300
+                    datePoints > 0
+                      ? datePoints >= 300
                         ? 'text-green-400'
                         : 'text-yellow-400'
                       : 'text-gray-500'
                   }`}>
-                    {history[date] ? `${history[date]} pts` : '-'}
+                    {datePoints > 0 ? `${datePoints} pts` : '-'}
                   </div>
                 </button>
-              ))}
+              )})}
+            </div>
             </div>
           </div>
         </div>
@@ -976,19 +974,21 @@ export default function App() {
     if (editingDate && editValue !== '') {
       const seasonKey = `season${currentSeason}`;
       const newPoints = parseInt(editValue) || 0;
+      
+      // Create updated history
       const updatedHistory = { ...history, [editingDate]: newPoints };
       
-      // Update state immediately
-      setHistory(updatedHistory);
-      
-      // Save to localStorage
+      // Save to localStorage FIRST
       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
+      
+      // Then update state
+      setHistory(updatedHistory);
       
       // Clear edit state
       setEditingDate(null);
       setEditValue('');
       
-      showModal('Success', 'Points updated successfully!', 'info');
+      showModal('Success', `Points for ${formatDate(editingDate)} updated to ${newPoints}!`, 'info');
     }
   };
 
@@ -1140,7 +1140,9 @@ export default function App() {
       return currentPlayer ? calculatePoints(currentPlayer) : 0;
     } else {
       // For past dates, ALWAYS use history value (preserves manual overrides)
-      return history[selectedDate] || 0;
+      const points = history[selectedDate] || 0;
+      console.log(`Loading points for ${selectedDate}: ${points}`, history);
+      return points;
     }
   }, [selectedDate, currentPlayer, history, today]);
 
