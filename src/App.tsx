@@ -209,7 +209,7 @@ const CustomModal = ({ isOpen, type, title, message, onConfirm, onCancel }) => {
   );
 };
 
-const LandingPage = ({ onEnter, playerName, setPlayerName, getSeasonDates, history, currentPlayer, forceSaveCurrentState, setIsViewMode, setSelectedDate, setCurrentPlayer, setShowCalendar, selectedDate }) => {
+const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
@@ -224,7 +224,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName, getSeasonDates, histo
             <Trophy className="text-yellow-400" size={48} />
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-red-500 tracking-tight">
-            THE HYYERR GUILD (v2.1)
+            THE HYYERR GUILD
           </h1>
           <p className="text-xl text-gray-400 font-light tracking-wide max-w-2xl mx-auto">
             Official Point Tracker & Resource Hub
@@ -324,7 +324,7 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
         <div className="mb-4 p-4 bg-blue-500/30 border-2 border-blue-400 rounded-lg flex items-center gap-3 animate-in fade-in duration-300">
           <Info className="text-blue-300 shrink-0" size={24} />
           <span className="text-blue-100 text-sm font-semibold">
-            📅 Viewing past date in READ-ONLY mode. Use "Manual Override" button below to edit this date's points, or return to today to track new progress.
+            📅 Viewing past date. You can now edit checklists or use Manual Override to adjust points.
           </span>
         </div>
       )}
@@ -332,7 +332,7 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
             <Trophy className="text-yellow-400 shrink-0" size={32} />
-            <span className="break-all">{currentPlayer?.name || playerName} (v2.1)</span>
+            <span className="break-all">{currentPlayer?.name || playerName}</span>
           </h1>
           <p className="text-yellow-200 text-sm opacity-80 pl-1">
             Season {currentSeason} • {formatDate(selectedDate)}
@@ -793,19 +793,30 @@ export default function App() {
   const updateCompletion = (category, key, value) => {
     const today = getTodayEST();
     
-    // Prevent updates if not on today's date
-    if (selectedDate !== today) {
-      showModal('View Only Mode', 'You are viewing a past date. Return to today to make changes, or use Manual Override to edit this date.', 'alert');
-      return;
-    }
-    
+    // We calculate the new state immediately to handle past-date saving
     const updated = { ...currentPlayer };
     if (category === 'guildQuests' || category === 'infiniteTower') {
       updated[category] = { ...updated[category], ...value };
     } else {
       updated[category] = { ...updated[category], [key]: value };
     }
+    
     setCurrentPlayer(updated);
+
+    // CRITICAL UPDATE: If this is a past date, we must manually trigger the save here.
+    // The main useEffect is blocked for past dates to prevent "auto-wiping" on navigation.
+    // But if the user *explicitly* clicks a checkbox, we want to save that action.
+    if (selectedDate !== today) {
+       localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(updated));
+       
+       const points = calculatePoints(updated);
+       const seasonKey = `season${currentSeason}`;
+       const updatedHistory = { ...history, [selectedDate]: points };
+       
+       // Update history state (which updates the UI score immediately)
+       setHistory(updatedHistory);
+       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
+    }
   };
 
   const startEdit = (date, points) => {
