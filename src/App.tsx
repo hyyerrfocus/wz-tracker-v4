@@ -233,7 +233,167 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
 
         <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto pr-2 custom-scrollbar">
+              {getSeasonDates().reverse().map(date => (
+                <button
+                  key={date}
+                  onClick={() => {
+                    const today = getTodayEST();
+                    
+                    // Only force save if currently on today's date
+                    if (selectedDate === today && currentPlayer) {
+                      forceSaveCurrentState();
+                    }
+                    
+                    // Update view mode and selected date
+                    const isViewingPast = date !== today;
+                    setIsViewMode(isViewingPast);
+                    setSelectedDate(date);
+                    setShowCalendar(false);
+                    
+                    // Load appropriate player data
+                    const stored = localStorage.getItem(`hyyerr_player_${date}`);
+                    if (stored) {
+                      setCurrentPlayer(JSON.parse(stored));
+                    } else if (date === today) {
+                      // Only create new empty player for today
+                      setCurrentPlayer({
+                        name: playerName,
+                        dungeons: {},
+                        worldEvents: {},
+                        towers: {},
+                        infiniteTower: { floor: 0 },
+                        guildQuests: { easy: false, medium: false, hard: false }
+                      });
+                    } else {
+                      // For past dates with no data, show empty state
+                      setCurrentPlayer({
+                        name: playerName,
+                        dungeons: {},
+                        worldEvents: {},
+                        towers: {},
+                        infiniteTower: { floor: 0 },
+                        guildQuests: { easy: false, medium: false, hard: false }
+                      });
+                    }
+                  }}
+                  className={`p-3 rounded-lg border transition-all relative ${
+                    date === selectedDate
+                      ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-500/50'
+                      : history[date]
+                      ? history[date] >= 300
+                        ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20'
+                        : 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="text-white text-sm font-medium mb-1">{formatDate(date)}</div>
+                  <div className={`text-xs font-bold ${
+                    history[date]
+                      ? history[date] >= 300
+                        ? 'text-green-400'
+                        : 'text-yellow-400'
+                      : 'text-gray-500'
+                  }`}>
+                    {history[date] ? `${history[date]} pts` : '-'}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Modal */}
+      {showAnalytics && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-4xl w-full border border-purple-500/30 shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white">Performance Analytics</h3>
+              <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-white transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Goal Completion</div>
+                <div className="text-4xl font-bold text-green-400">{analytics.goalPercentage}%</div>
+                <div className="text-xs text-green-400/60 mt-2">Days with 300+ pts</div>
+              </div>
+              <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl p-5 border border-orange-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Current Streak</div>
+                <div className="text-4xl font-bold text-orange-400">{analytics.currentStreak}</div>
+                <div className="text-xs text-orange-400/60 mt-2">Consecutive days</div>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-5 border border-blue-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Weekly Avg</div>
+                <div className="text-4xl font-bold text-blue-400">{analytics.weeklyAvg}</div>
+                <div className="text-xs text-blue-400/60 mt-2">Last 7 Days</div>
+              </div>
+              <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-5 border border-yellow-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Total Score</div>
+                <div className="text-4xl font-bold text-yellow-400">{totalPoints}</div>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-5 border border-purple-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Best Day</div>
+                <div className="text-4xl font-bold text-purple-400">{analytics.bestDayPoints}</div>
+                <div className="text-xs text-purple-400/60 mt-2">{analytics.bestDay ? formatDate(analytics.bestDay) : 'No Data'}</div>
+              </div>
+              <div className="bg-gradient-to-br from-teal-500/20 to-green-500/20 rounded-xl p-5 border border-teal-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
+                <div className="text-4xl font-bold text-teal-400">{avgPoints}</div>
+                <div className="text-xs text-teal-400/60 mt-2">Lifetime Season Avg</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import/Export Modal */}
+      {showImportExport && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-green-500/30 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Backup & Restore</h3>
+              <button onClick={() => setShowImportExport(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={exportData}
+                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-semibold"
+              >
+                <Download size={18} />
+                Download Backup File
+              </button>
+
+              <div className="relative">
+                <label className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer font-semibold">
+                  <Upload size={18} />
+                  Restore From Backup
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={(e) => importData(e)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-yellow-300 text-xs leading-relaxed">
+                  <strong>Tip:</strong> Export regularly to save your data locally. Importing will overwrite your current history with the backup file.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-white mb-2">Welcome, Adventurer</h2>
                 <p className="text-gray-400 leading-relaxed">
@@ -313,7 +473,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
   );
 };
 
-const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit, isViewMode }) => {
+const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit, isViewMode, playerName }) => {
   const today = getTodayEST();
   const isViewingPast = selectedDate !== today;
   
@@ -328,63 +488,66 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
         </div>
       )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
-          <Trophy className="text-yellow-400 shrink-0" size={32} />
-          <span className="break-all">{currentPlayer?.name || playerName}</span>
-        </h1>
-        <p className="text-yellow-200 text-sm opacity-80 pl-1">
-          Season {currentSeason} • {formatDate(selectedDate)}
-        </p>
-      </div>
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
+            <Trophy className="text-yellow-400 shrink-0" size={32} />
+            <span className="break-all">{currentPlayer?.name || playerName}</span>
+          </h1>
+          <p className="text-yellow-200 text-sm opacity-80 pl-1">
+            Season {currentSeason} • {formatDate(selectedDate)}
+          </p>
+        </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button onClick={() => setView('landing')} className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-all flex items-center gap-2 text-sm border border-white/10">
-          Back to Home
-        </button>
-        <button onClick={() => setShowAnalytics(true)} className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-purple-600/20">
-          <BarChart3 size={18} /> Analytics
-        </button>
-        <button onClick={() => setShowCalendar(true)} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20">
-          <Calendar size={18} /> Calendar
-        </button>
-        <button onClick={() => setShowImportExport(true)} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-600/20">
-          <Download size={18} /> Backup
-        </button>
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <div className="bg-white/5 rounded-xl p-4 sm:col-span-2 border border-white/10 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
-        <div className="text-gray-300 text-sm mb-1">Today's Points</div>
-        <div className={`text-4xl font-black tracking-tight ${myPoints >= 300 ? 'text-green-400' : 'text-yellow-400'}`}>
-          {myPoints}
-          <span className="text-xl text-gray-500 font-normal ml-2">/ 300</span>
-        </div>
-        <div className="mt-3 bg-gray-800 rounded-full h-3 overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all duration-500 ease-out ${myPoints >= 300 ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`}
-            style={{ width: `${Math.min((myPoints / 300) * 100, 100)}%` }}
-          />
-        </div>
-        {selectedDate !== getTodayEST() && (
-          <button onClick={() => startEdit(selectedDate, myPoints)} className="mt-4 w-full px-3 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/30 text-orange-300 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
-            <Edit2 size={16} /> Manual Override
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setView('landing')} className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-all flex items-center gap-2 text-sm border border-white/10">
+            Back to Home
           </button>
-        )}
+          <button onClick={() => setShowAnalytics(true)} className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-purple-600/20">
+            <BarChart3 size={18} /> Analytics
+          </button>
+          <button onClick={() => setShowCalendar(true)} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20">
+            <Calendar size={18} /> Calendar
+          </button>
+          <button onClick={() => setShowImportExport(true)} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-600/20">
+            <Download size={18} /> Backup
+          </button>
+        </div>
       </div>
-      <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl p-4 border border-blue-500/20 flex flex-col justify-center">
-        <div className="text-gray-400 text-sm mb-1">Total Season Points</div>
-        <div className="text-3xl font-bold text-blue-400">{totalPoints}</div>
-      </div>
-      <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20 flex flex-col justify-center">
-        <div className="text-gray-400 text-sm mb-1">Daily Average</div>
-        <div className="text-3xl font-bold text-green-400">{avgPoints}</div>
+    
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white/5 rounded-xl p-4 sm:col-span-2 border border-white/10 relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
+          <div className="text-gray-300 text-sm mb-1">
+            {isViewingPast ? "Points on This Date" : "Today's Points"}
+          </div>
+          <div className={`text-4xl font-black tracking-tight ${myPoints >= 300 ? 'text-green-400' : 'text-yellow-400'}`}>
+            {myPoints}
+            <span className="text-xl text-gray-500 font-normal ml-2">/ 300</span>
+          </div>
+          <div className="mt-3 bg-gray-800 rounded-full h-3 overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-500 ease-out ${myPoints >= 300 ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`}
+              style={{ width: `${Math.min((myPoints / 300) * 100, 100)}%` }}
+            />
+          </div>
+          {isViewingPast && (
+            <button onClick={() => startEdit(selectedDate, myPoints)} className="mt-4 w-full px-3 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/30 text-orange-300 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
+              <Edit2 size={16} /> Manual Override
+            </button>
+          )}
+        </div>
+        <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl p-4 border border-blue-500/20 flex flex-col justify-center">
+          <div className="text-gray-400 text-sm mb-1">Total Season Points</div>
+          <div className="text-3xl font-bold text-blue-400">{totalPoints}</div>
+        </div>
+        <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20 flex flex-col justify-center">
+          <div className="text-gray-400 text-sm mb-1">Daily Average</div>
+          <div className="text-3xl font-bold text-green-400">{avgPoints}</div>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const GuildQuestSection = ({ currentPlayer, updateCompletion }) => (
   <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
@@ -684,28 +847,7 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    if (currentPlayer && selectedDate) {
-      const stored = localStorage.getItem(`hyyerr_player_${selectedDate}`);
-      if (stored) {
-        try {
-          const loadedPlayer = JSON.parse(stored);
-          if (JSON.stringify(loadedPlayer) !== JSON.stringify(currentPlayer)) {
-            // Handle sync
-          }
-        } catch (e) { console.error(e); }
-      } else if (selectedDate !== getTodayEST()) {
-        setCurrentPlayer({
-          name: currentPlayer.name,
-          dungeons: {},
-          worldEvents: {},
-          towers: {},
-          infiniteTower: { floor: 0 },
-          guildQuests: { easy: false, medium: false, hard: false }
-        });
-      }
-    }
-  }, [selectedDate]);
+  // This effect is intentionally minimal - date changes are handled in the calendar button click handler
 
   useEffect(() => {
     const today = getTodayEST();
@@ -724,9 +866,13 @@ export default function App() {
     localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(currentPlayer));
     const points = calculatePoints(currentPlayer);
     const seasonKey = `season${currentSeason}`;
+    
+    // CRITICAL: Only update history if there's NO manual override for today
+    // Manual overrides should be preserved
+    const existingPoints = history[selectedDate];
     const updatedHistory = { ...history, [selectedDate]: points };
     
-    if (history[selectedDate] !== points) {
+    if (existingPoints !== points) {
       setHistory(updatedHistory);
       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
     }
@@ -822,10 +968,22 @@ export default function App() {
   const saveEdit = () => {
     if (editingDate && editValue !== '') {
       const seasonKey = `season${currentSeason}`;
-      const updatedHistory = { ...history, [editingDate]: parseInt(editValue) || 0 };
+      const newPoints = parseInt(editValue) || 0;
+      const updatedHistory = { ...history, [editingDate]: newPoints };
       setHistory(updatedHistory);
       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
+      
+      // Also update the display if we're currently viewing this date
+      if (selectedDate === editingDate) {
+        // Force a recalculation by reloading from history
+        const stored = localStorage.getItem(`hyyerr_player_${editingDate}`);
+        if (stored) {
+          setCurrentPlayer(JSON.parse(stored));
+        }
+      }
+      
       setEditingDate(null);
+      showModal('Success', 'Points updated successfully!', 'info');
     }
   };
 
@@ -969,7 +1127,12 @@ export default function App() {
   });
   const totalPoints = seasonHistoryDates.reduce((sum, date) => sum + (history[date] || 0), 0);
   const avgPoints = seasonHistoryDates.length > 0 ? Math.round(totalPoints / seasonHistoryDates.length) : 0;
-  const myPoints = currentPlayer ? calculatePoints(currentPlayer) : 0;
+  
+  // CRITICAL FIX: Use stored history points for past dates, calculated points only for today
+  const today = getTodayEST();
+  const myPoints = selectedDate === today 
+    ? (currentPlayer ? calculatePoints(currentPlayer) : 0)
+    : (history[selectedDate] || 0);
 
   // --- Main Render ---
   if (view === 'landing' || !currentPlayer) {
@@ -1004,6 +1167,7 @@ export default function App() {
           avgPoints={avgPoints}
           startEdit={startEdit}
           isViewMode={isViewMode}
+          playerName={playerName}
         />
 
         <GuildQuestSection 
@@ -1079,168 +1243,9 @@ export default function App() {
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-gray-900 rounded-xl p-6 max-w-4xl w-full border border-blue-500/30 shadow-2xl max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Performance Analytics</h3>
-              <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Goal Completion</div>
-                <div className="text-4xl font-bold text-green-400">{analytics.goalPercentage}%</div>
-                <div className="text-xs text-green-400/60 mt-2">Days with 300+ pts</div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl p-5 border border-orange-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Current Streak</div>
-                <div className="text-4xl font-bold text-orange-400">{analytics.currentStreak}</div>
-                <div className="text-xs text-orange-400/60 mt-2">Consecutive days</div>
-              </div>
-              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-5 border border-blue-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Weekly Avg</div>
-                <div className="text-4xl font-bold text-blue-400">{analytics.weeklyAvg}</div>
-                <div className="text-xs text-blue-400/60 mt-2">Last 7 Days</div>
-              </div>
-              <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-5 border border-yellow-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Total Score</div>
-                <div className="text-4xl font-bold text-yellow-400">{totalPoints}</div>
-              </div>
-              <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-5 border border-purple-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Best Day</div>
-                <div className="text-4xl font-bold text-purple-400">{analytics.bestDayPoints}</div>
-                <div className="text-xs text-purple-400/60 mt-2">{analytics.bestDay ? formatDate(analytics.bestDay) : 'No Data'}</div>
-              </div>
-              <div className="bg-gradient-to-br from-teal-500/20 to-green-500/20 rounded-xl p-5 border border-teal-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
-                <div className="text-4xl font-bold text-teal-400">{avgPoints}</div>
-                <div className="text-xs text-teal-400/60 mt-2">Lifetime Season Avg</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import/Export Modal */}
-      {showImportExport && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-green-500/30 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Backup & Restore</h3>
-              <button onClick={() => setShowImportExport(false)} className="text-gray-400 hover:text-white">
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <button
-                onClick={exportData}
-                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-semibold"
-              >
-                <Download size={18} />
-                Download Backup File
-              </button>
-
-              <div className="relative">
-                <label className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer font-semibold">
-                  <Upload size={18} />
-                  Restore From Backup
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={(e) => importData(e)}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                <p className="text-yellow-300 text-xs leading-relaxed">
-                  <strong>Tip:</strong> Export regularly to save your data locally. Importing will overwrite your current history with the backup file.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}<h3 className="text-2xl font-bold text-white">Season Calendar</h3>
+              <h3 className="text-2xl font-bold text-white">Season Calendar</h3>
               <button onClick={() => setShowCalendar(false)} className="text-gray-400 hover:text-white transition-colors">
                 <X size={24} />
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto pr-2 custom-scrollbar">
-              {getSeasonDates().reverse().map(date => (
-                <button
-                  key={date}
-                  onClick={() => {
-                    const today = getTodayEST();
-                    
-                    // Only force save if currently on today's date
-                    if (selectedDate === today && currentPlayer) {
-                      forceSaveCurrentState();
-                    }
-                    
-                    // Update view mode and selected date
-                    const isViewingPast = date !== today;
-                    setIsViewMode(isViewingPast);
-                    setSelectedDate(date);
-                    setShowCalendar(false);
-                    
-                    // Load appropriate player data
-                    const stored = localStorage.getItem(`hyyerr_player_${date}`);
-                    if (stored) {
-                      setCurrentPlayer(JSON.parse(stored));
-                    } else if (date === today) {
-                      // Only create new empty player for today
-                      setCurrentPlayer({
-                        name: playerName,
-                        dungeons: {},
-                        worldEvents: {},
-                        towers: {},
-                        infiniteTower: { floor: 0 },
-                        guildQuests: { easy: false, medium: false, hard: false }
-                      });
-                    } else {
-                      // For past dates with no data, show empty state
-                      setCurrentPlayer({
-                        name: playerName,
-                        dungeons: {},
-                        worldEvents: {},
-                        towers: {},
-                        infiniteTower: { floor: 0 },
-                        guildQuests: { easy: false, medium: false, hard: false }
-                      });
-                    }
-                  }}
-                  className={`p-3 rounded-lg border transition-all relative ${
-                    date === selectedDate
-                      ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-500/50'
-                      : history[date]
-                      ? history[date] >= 300
-                        ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20'
-                        : 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  <div className="text-white text-sm font-medium mb-1">{formatDate(date)}</div>
-                  <div className={`text-xs font-bold ${
-                    history[date]
-                      ? history[date] >= 300
-                        ? 'text-green-400'
-                        : 'text-yellow-400'
-                      : 'text-gray-500'
-                  }`}>
-                    {history[date] ? `${history[date]} pts` : '-'}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Modal */}
-      {showAnalytics && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-xl p-6 max-w-3xl w-full border border-purple-500/30 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
+            <div className
