@@ -594,7 +594,10 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState('');
   const [collapsedWorlds, setCollapsedWorlds] = useState({});
   const [seasonStartDate, setSeasonStartDate] = useState('');
-  const [isViewMode, setIsViewMode] = useState(false); // NEW: Track if we're in view-only mode
+  const [isViewMode, setIsViewMode] = useState(false);
+  
+  // Use ref to prevent saving during calendar navigation
+  const isSwitchingDatesRef = React.useRef(false);
 
   // Modal State
   const [modalConfig, setModalConfig] = useState({
@@ -708,7 +711,12 @@ export default function App() {
   }, [selectedDate]);
 
   useEffect(() => {
-    // CRITICAL: Only save if we're on today's date and have player data
+    // CRITICAL: Don't save if we're in the middle of switching dates
+    if (isSwitchingDatesRef.current) {
+      return;
+    }
+    
+    // Only save if we're on today's date and have player data
     const today = getTodayEST();
     const shouldSave = currentPlayer && selectedDate === today;
     
@@ -728,7 +736,7 @@ export default function App() {
     // Cleanup function to save state before unmount or browser close
     const cleanupSave = () => {
       const isToday = selectedDate === getTodayEST();
-      if (isToday && currentPlayer) {
+      if (isToday && currentPlayer && !isSwitchingDatesRef.current) {
         forceSaveCurrentState(currentPlayer);
       }
     };
@@ -1169,6 +1177,9 @@ export default function App() {
                   onClick={() => {
                     const today = getTodayEST();
                     
+                    // Set flag to prevent useEffect from saving during transition
+                    isSwitchingDatesRef.current = true;
+                    
                     // Only force save if currently on today's date
                     if (selectedDate === today && currentPlayer) {
                       forceSaveCurrentState();
@@ -1205,6 +1216,11 @@ export default function App() {
                         guildQuests: { easy: false, medium: false, hard: false }
                       });
                     }
+                    
+                    // Clear the flag after a brief delay to allow state updates
+                    setTimeout(() => {
+                      isSwitchingDatesRef.current = false;
+                    }, 100);
                   }}
                   className={`p-3 rounded-lg border transition-all relative ${
                     date === selectedDate
