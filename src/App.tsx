@@ -224,7 +224,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName, getSeasonDates, histo
             <Trophy className="text-yellow-400" size={48} />
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-red-500 tracking-tight">
-            THE HYYERR GUILD
+            THE HYYERR GUILD (v2.1)
           </h1>
           <p className="text-xl text-gray-400 font-light tracking-wide max-w-2xl mx-auto">
             Official Point Tracker & Resource Hub
@@ -332,7 +332,7 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
             <Trophy className="text-yellow-400 shrink-0" size={32} />
-            <span className="break-all">{currentPlayer?.name || playerName}</span>
+            <span className="break-all">{currentPlayer?.name || playerName} (v2.1)</span>
           </h1>
           <p className="text-yellow-200 text-sm opacity-80 pl-1">
             Season {currentSeason} • {formatDate(selectedDate)}
