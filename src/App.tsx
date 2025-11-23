@@ -313,20 +313,21 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
   );
 };
 
-const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit, isViewMode }) => (
-  <div className="bg-gradient-to-r from-yellow-900/20 via-orange-900/20 to-red-900/20 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-2xl border border-yellow-500/30">
-    {isViewMode && (
-      <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/40 rounded-lg flex items-center gap-2">
-        <Info className="text-blue-400" size={20} />
-        <span className="text-blue-200 text-sm font-medium">
-          {currentPlayer ? 
-            "Viewing past date in read-only mode. Use Manual Override to edit, or return to today to track progress." :
-            "Viewing past date with manual override only. Use Manual Override to edit the point value."
-          }
-        </span>
-      </div>
-    )}
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit, isViewMode }) => {
+  const today = getTodayEST();
+  const isViewingPast = selectedDate !== today;
+  
+  return (
+    <div className="bg-gradient-to-r from-yellow-900/20 via-orange-900/20 to-red-900/20 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-2xl border border-yellow-500/30">
+      {isViewingPast && (
+        <div className="mb-4 p-4 bg-blue-500/30 border-2 border-blue-400 rounded-lg flex items-center gap-3 animate-in fade-in duration-300">
+          <Info className="text-blue-300 shrink-0" size={24} />
+          <span className="text-blue-100 text-sm font-semibold">
+            📅 Viewing past date in READ-ONLY mode. Use "Manual Override" button below to edit this date's points, or return to today to track new progress.
+          </span>
+        </div>
+      )}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center gap-2 pb-1 leading-relaxed">
           <Trophy className="text-yellow-400 shrink-0" size={32} />
@@ -707,8 +708,12 @@ export default function App() {
   }, [selectedDate]);
 
   useEffect(() => {
-    if (currentPlayer && selectedDate && !isViewMode) {
-      // Only save if NOT in view mode
+    // CRITICAL: Only save if we're on today's date and have player data
+    const today = getTodayEST();
+    const shouldSave = currentPlayer && selectedDate === today;
+    
+    if (shouldSave) {
+      // Immediate save on change
       localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(currentPlayer));
       const points = calculatePoints(currentPlayer);
       const seasonKey = `season${currentSeason}`;
@@ -722,7 +727,8 @@ export default function App() {
 
     // Cleanup function to save state before unmount or browser close
     const cleanupSave = () => {
-      if (!isViewMode) {
+      const isToday = selectedDate === getTodayEST();
+      if (isToday && currentPlayer) {
         forceSaveCurrentState(currentPlayer);
       }
     };
@@ -735,7 +741,7 @@ export default function App() {
       cleanupSave();
       window.removeEventListener('beforeunload', cleanupSave);
     };
-  }, [currentPlayer, selectedDate, currentSeason, isViewMode]);
+  }, [currentPlayer, selectedDate, currentSeason]);
 
   // --- Handlers ---
   
@@ -785,8 +791,10 @@ export default function App() {
   };
 
   const updateCompletion = (category, key, value) => {
-    // Prevent updates in view mode
-    if (isViewMode) {
+    const today = getTodayEST();
+    
+    // Prevent updates if not on today's date
+    if (selectedDate !== today) {
       showModal('View Only Mode', 'You are viewing a past date. Return to today to make changes, or use Manual Override to edit this date.', 'alert');
       return;
     }
@@ -1161,19 +1169,18 @@ export default function App() {
                   onClick={() => {
                     const today = getTodayEST();
                     
-                    // Only force save if leaving today's date and not in view mode
-                    if (selectedDate === today && !isViewMode) {
+                    // Only force save if currently on today's date
+                    if (selectedDate === today && currentPlayer) {
                       forceSaveCurrentState();
                     }
                     
+                    // Update selected date and view mode FIRST
+                    const isViewingPast = date !== today;
+                    setIsViewMode(isViewingPast);
                     setSelectedDate(date);
                     setShowCalendar(false);
                     
-                    // Set view mode if not today
-                    const isViewingPast = date !== today;
-                    setIsViewMode(isViewingPast);
-                    
-                    // Only load player data if it exists OR if it's today
+                    // Load appropriate player data
                     const stored = localStorage.getItem(`hyyerr_player_${date}`);
                     if (stored) {
                       setCurrentPlayer(JSON.parse(stored));
@@ -1188,8 +1195,15 @@ export default function App() {
                         guildQuests: { easy: false, medium: false, hard: false }
                       });
                     } else {
-                      // For past dates with no data, set to null to prevent saving
-                      setCurrentPlayer(null);
+                      // For past dates with no data, show empty state
+                      setCurrentPlayer({
+                        name: playerName,
+                        dungeons: {},
+                        worldEvents: {},
+                        towers: {},
+                        infiniteTower: { floor: 0 },
+                        guildQuests: { easy: false, medium: false, hard: false }
+                      });
                     }
                   }}
                   className={`p-3 rounded-lg border transition-all relative ${
