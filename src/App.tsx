@@ -595,9 +595,6 @@ export default function App() {
   const [collapsedWorlds, setCollapsedWorlds] = useState({});
   const [seasonStartDate, setSeasonStartDate] = useState('');
   const [isViewMode, setIsViewMode] = useState(false);
-  
-  // Use ref to prevent saving during calendar navigation
-  const isSwitchingDatesRef = React.useRef(false);
 
   // Modal State
   const [modalConfig, setModalConfig] = useState({
@@ -711,32 +708,33 @@ export default function App() {
   }, [selectedDate]);
 
   useEffect(() => {
-    // CRITICAL: Don't save if we're in the middle of switching dates
-    if (isSwitchingDatesRef.current) {
+    const today = getTodayEST();
+    
+    // ONLY save if we're viewing TODAY - nothing else matters
+    if (selectedDate !== today) {
+      return; // Exit immediately if not today
+    }
+    
+    // ONLY save if we have player data
+    if (!currentPlayer) {
       return;
     }
     
-    // Only save if we're on today's date and have player data
-    const today = getTodayEST();
-    const shouldSave = currentPlayer && selectedDate === today;
+    // Now we can safely save
+    localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(currentPlayer));
+    const points = calculatePoints(currentPlayer);
+    const seasonKey = `season${currentSeason}`;
+    const updatedHistory = { ...history, [selectedDate]: points };
     
-    if (shouldSave) {
-      // Immediate save on change
-      localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(currentPlayer));
-      const points = calculatePoints(currentPlayer);
-      const seasonKey = `season${currentSeason}`;
-      const updatedHistory = { ...history, [selectedDate]: points };
-      
-      if (history[selectedDate] !== points) {
-        setHistory(updatedHistory);
-        localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
-      }
+    if (history[selectedDate] !== points) {
+      setHistory(updatedHistory);
+      localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
     }
 
     // Cleanup function to save state before unmount or browser close
     const cleanupSave = () => {
-      const isToday = selectedDate === getTodayEST();
-      if (isToday && currentPlayer && !isSwitchingDatesRef.current) {
+      // Double check we're still on today
+      if (getTodayEST() === selectedDate && currentPlayer) {
         forceSaveCurrentState(currentPlayer);
       }
     };
@@ -1177,15 +1175,12 @@ export default function App() {
                   onClick={() => {
                     const today = getTodayEST();
                     
-                    // Set flag to prevent useEffect from saving during transition
-                    isSwitchingDatesRef.current = true;
-                    
                     // Only force save if currently on today's date
                     if (selectedDate === today && currentPlayer) {
                       forceSaveCurrentState();
                     }
                     
-                    // Update selected date and view mode FIRST
+                    // Update view mode and selected date
                     const isViewingPast = date !== today;
                     setIsViewMode(isViewingPast);
                     setSelectedDate(date);
@@ -1216,11 +1211,6 @@ export default function App() {
                         guildQuests: { easy: false, medium: false, hard: false }
                       });
                     }
-                    
-                    // Clear the flag after a brief delay to allow state updates
-                    setTimeout(() => {
-                      isSwitchingDatesRef.current = false;
-                    }, 100);
                   }}
                   className={`p-3 rounded-lg border transition-all relative ${
                     date === selectedDate
