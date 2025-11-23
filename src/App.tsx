@@ -209,7 +209,7 @@ const CustomModal = ({ isOpen, type, title, message, onConfirm, onCancel }) => {
   );
 };
 
-const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
+const LandingPage = ({ onEnter, playerName, setPlayerName, getSeasonDates, history, currentPlayer, forceSaveCurrentState, setIsViewMode, setSelectedDate, setCurrentPlayer, setShowCalendar, selectedDate }) => {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
@@ -233,165 +233,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
 
         <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto pr-2 custom-scrollbar">
-              {getSeasonDates().reverse().map(date => {
-                const datePoints = history[date] || 0;
-                return (
-                <button
-                  key={date}
-                  onClick={() => {
-                    const today = getTodayEST();
-                    
-                    // Only force save if currently on today's date
-                    if (selectedDate === today && currentPlayer) {
-                      forceSaveCurrentState();
-                    }
-                    
-                    // Update view mode and selected date FIRST
-                    const isViewingPast = date !== today;
-                    setIsViewMode(isViewingPast);
-                    setSelectedDate(date);
-                    
-                    // Load appropriate player data
-                    const stored = localStorage.getItem(`hyyerr_player_${date}`);
-                    if (stored) {
-                      try {
-                        setCurrentPlayer(JSON.parse(stored));
-                      } catch (e) {
-                        console.error('Error loading player data:', e);
-                      }
-                    } else {
-                      // For dates with no stored player data, set empty player
-                      setCurrentPlayer({
-                        name: playerName,
-                        dungeons: {},
-                        worldEvents: {},
-                        towers: {},
-                        infiniteTower: { floor: 0 },
-                        guildQuests: { easy: false, medium: false, hard: false }
-                      });
-                    }
-                    
-                    setShowCalendar(false);
-                  }}
-                  className={`p-3 rounded-lg border transition-all relative ${
-                    date === selectedDate
-                      ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-500/50'
-                      : datePoints > 0
-                      ? datePoints >= 300
-                        ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20'
-                        : 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  <div className="text-white text-sm font-medium mb-1">{formatDate(date)}</div>
-                  <div className={`text-xs font-bold ${
-                    datePoints > 0
-                      ? datePoints >= 300
-                        ? 'text-green-400'
-                        : 'text-yellow-400'
-                      : 'text-gray-500'
-                  }`}>
-                    {datePoints > 0 ? `${datePoints} pts` : '-'}
-                  </div>
-                </button>
-              )})}
-            </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Modal */}
-      {showAnalytics && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-xl p-6 max-w-4xl w-full border border-purple-500/30 shadow-2xl max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Performance Analytics</h3>
-              <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Goal Completion</div>
-                <div className="text-4xl font-bold text-green-400">{analytics.goalPercentage}%</div>
-                <div className="text-xs text-green-400/60 mt-2">Days with 300+ pts</div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl p-5 border border-orange-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Current Streak</div>
-                <div className="text-4xl font-bold text-orange-400">{analytics.currentStreak}</div>
-                <div className="text-xs text-orange-400/60 mt-2">Consecutive days</div>
-              </div>
-              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-5 border border-blue-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Weekly Avg</div>
-                <div className="text-4xl font-bold text-blue-400">{analytics.weeklyAvg}</div>
-                <div className="text-xs text-blue-400/60 mt-2">Last 7 Days</div>
-              </div>
-              <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-5 border border-yellow-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Total Score</div>
-                <div className="text-4xl font-bold text-yellow-400">{totalPoints}</div>
-              </div>
-              <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-5 border border-purple-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Best Day</div>
-                <div className="text-4xl font-bold text-purple-400">{analytics.bestDayPoints}</div>
-                <div className="text-xs text-purple-400/60 mt-2">{analytics.bestDay ? formatDate(analytics.bestDay) : 'No Data'}</div>
-              </div>
-              <div className="bg-gradient-to-br from-teal-500/20 to-green-500/20 rounded-xl p-5 border border-teal-500/30">
-                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
-                <div className="text-4xl font-bold text-teal-400">{avgPoints}</div>
-                <div className="text-xs text-teal-400/60 mt-2">Lifetime Season Avg</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import/Export Modal */}
-      {showImportExport && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-green-500/30 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Backup & Restore</h3>
-              <button onClick={() => setShowImportExport(false)} className="text-gray-400 hover:text-white">
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <button
-                onClick={exportData}
-                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-semibold"
-              >
-                <Download size={18} />
-                Download Backup File
-              </button>
-
-              <div className="relative">
-                <label className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer font-semibold">
-                  <Upload size={18} />
-                  Restore From Backup
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={(e) => importData(e)}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                <p className="text-yellow-300 text-xs leading-relaxed">
-                  <strong>Tip:</strong> Export regularly to save your data locally. Importing will overwrite your current history with the backup file.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}="space-y-6">
+            <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-white mb-2">Welcome, Adventurer</h2>
                 <p className="text-gray-400 leading-relaxed">
@@ -473,6 +315,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
 
 const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit, isViewMode, playerName }) => {
   const today = getTodayEST();
+  // Ensure we use the isViewMode prop logic properly, but also double check locally
   const isViewingPast = selectedDate !== today;
   
   return (
@@ -901,8 +744,12 @@ export default function App() {
   // Force save function to prevent data loss
   const forceSaveCurrentState = (playerToSave = null) => {
     const player = playerToSave || currentPlayer;
+    const today = getTodayEST();
 
-    if (player && selectedDate) {
+    // CRITICAL FIX: Only execute save if we are on TODAY's date.
+    // If selectedDate is a past date, we MUST NOT calculate points from checkboxes
+    // because it will overwrite manual overrides (history) with 0.
+    if (player && selectedDate && selectedDate === today) {
       // 1. Save the player's checked state for the selected day
       localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(player));
       
@@ -1149,7 +996,7 @@ export default function App() {
       }
       return 0;
     }
-  }, [selectedDate, currentPlayer, currentSeason, today]);
+  }, [selectedDate, currentPlayer, currentSeason, today, history]);
 
   // --- Main Render ---
   if (view === 'landing' || !currentPlayer) {
@@ -1159,7 +1006,16 @@ export default function App() {
         <LandingPage 
           onEnter={initializePlayer} 
           playerName={playerName} 
-          setPlayerName={setPlayerName} 
+          setPlayerName={setPlayerName}
+          getSeasonDates={getSeasonDates}
+          history={history}
+          currentPlayer={currentPlayer}
+          forceSaveCurrentState={forceSaveCurrentState}
+          setIsViewMode={setIsViewMode}
+          setSelectedDate={setSelectedDate}
+          setCurrentPlayer={setCurrentPlayer}
+          setShowCalendar={setShowCalendar}
+          selectedDate={selectedDate}
         />
       </>
     );
@@ -1265,4 +1121,161 @@ export default function App() {
                 <X size={24} />
               </button>
             </div>
-            <div className
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto pr-2 custom-scrollbar">
+              {getSeasonDates().reverse().map(date => {
+                const datePoints = history[date] || 0;
+                return (
+                <button
+                  key={date}
+                  onClick={() => {
+                    const today = getTodayEST();
+                    
+                    // Only force save if currently on today's date
+                    if (selectedDate === today && currentPlayer) {
+                      forceSaveCurrentState();
+                    }
+                    
+                    // Update view mode and selected date FIRST
+                    const isViewingPast = date !== today;
+                    setIsViewMode(isViewingPast);
+                    setSelectedDate(date);
+                    
+                    // Load appropriate player data
+                    const stored = localStorage.getItem(`hyyerr_player_${date}`);
+                    if (stored) {
+                      try {
+                        setCurrentPlayer(JSON.parse(stored));
+                      } catch (e) {
+                        console.error('Error loading player data:', e);
+                      }
+                    } else {
+                      // For dates with no stored player data, set empty player
+                      setCurrentPlayer({
+                        name: playerName,
+                        dungeons: {},
+                        worldEvents: {},
+                        towers: {},
+                        infiniteTower: { floor: 0 },
+                        guildQuests: { easy: false, medium: false, hard: false }
+                      });
+                    }
+                    
+                    setShowCalendar(false);
+                  }}
+                  className={`p-3 rounded-lg border transition-all relative ${
+                    date === selectedDate
+                      ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-500/50'
+                      : datePoints > 0
+                      ? datePoints >= 300
+                        ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20'
+                        : 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="text-white text-sm font-medium mb-1">{formatDate(date)}</div>
+                  <div className={`text-xs font-bold ${
+                    datePoints > 0
+                      ? datePoints >= 300
+                        ? 'text-green-400'
+                        : 'text-yellow-400'
+                      : 'text-gray-500'
+                  }`}>
+                    {datePoints > 0 ? `${datePoints} pts` : '-'}
+                  </div>
+                </button>
+              )})}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Modal */}
+      {showAnalytics && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-4xl w-full border border-purple-500/30 shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white">Performance Analytics</h3>
+              <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-white transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Goal Completion</div>
+                <div className="text-4xl font-bold text-green-400">{analytics.goalPercentage}%</div>
+                <div className="text-xs text-green-400/60 mt-2">Days with 300+ pts</div>
+              </div>
+              <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl p-5 border border-orange-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Current Streak</div>
+                <div className="text-4xl font-bold text-orange-400">{analytics.currentStreak}</div>
+                <div className="text-xs text-orange-400/60 mt-2">Consecutive days</div>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-5 border border-blue-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Weekly Avg</div>
+                <div className="text-4xl font-bold text-blue-400">{analytics.weeklyAvg}</div>
+                <div className="text-xs text-blue-400/60 mt-2">Last 7 Days</div>
+              </div>
+              <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-5 border border-yellow-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Total Score</div>
+                <div className="text-4xl font-bold text-yellow-400">{totalPoints}</div>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-5 border border-purple-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Best Day</div>
+                <div className="text-4xl font-bold text-purple-400">{analytics.bestDayPoints}</div>
+                <div className="text-xs text-purple-400/60 mt-2">{analytics.bestDay ? formatDate(analytics.bestDay) : 'No Data'}</div>
+              </div>
+              <div className="bg-gradient-to-br from-teal-500/20 to-green-500/20 rounded-xl p-5 border border-teal-500/30">
+                <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
+                <div className="text-4xl font-bold text-teal-400">{avgPoints}</div>
+                <div className="text-xs text-teal-400/60 mt-2">Lifetime Season Avg</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import/Export Modal */}
+      {showImportExport && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-green-500/30 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Backup & Restore</h3>
+              <button onClick={() => setShowImportExport(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={exportData}
+                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-semibold"
+              >
+                <Download size={18} />
+                Download Backup File
+              </button>
+
+              <div className="relative">
+                <label className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer font-semibold">
+                  <Upload size={18} />
+                  Restore From Backup
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={(e) => importData(e)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-yellow-300 text-xs leading-relaxed">
+                  <strong>Tip:</strong> Export regularly to save your data locally. Importing will overwrite your current history with the backup file.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
