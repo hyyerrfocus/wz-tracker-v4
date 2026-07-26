@@ -3,7 +3,7 @@ import {
   Trophy, Target, Calendar, Edit2, Check, X, BarChart3, 
   Download, Upload, ChevronDown, ChevronUp, AlertTriangle, 
   Info, ExternalLink, BookOpen, Gamepad2, MessageCircle, HelpCircle,
-  Layers, Gift, Plus
+  Layers, Gift, Plus, Clock, FileSpreadsheet, FlagOff
 } from 'lucide-react';
 
 // [INSTRUCTION]: Uncomment this line for your GitHub/Vercel build
@@ -148,6 +148,39 @@ const getTodayEST = () => {
   const month = String(estTime.getMonth() + 1).padStart(2, '0');
   const day = String(estTime.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// The reset always lands on 22:00 UTC — mathematically the same fixed moment as the
+// EDT/EST-aware cutoff above (6PM EDT = 22:00 UTC, 5PM EST = 22:00 UTC), so this is a safe,
+// simple way to compute a live countdown without redoing timezone-name detection.
+const getMsUntilReset = () => {
+  const now = new Date();
+  const resetHourUTC = 22;
+  const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), resetHourUTC, 0, 0, 0));
+  if (target <= now) {
+    target.setUTCDate(target.getUTCDate() + 1);
+  }
+  return target - now;
+};
+
+const ResetCountdown = () => {
+  const [msLeft, setMsLeft] = useState(() => getMsUntilReset());
+
+  useEffect(() => {
+    const interval = setInterval(() => setMsLeft(getMsUntilReset()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const totalMinutes = Math.max(0, Math.floor(msLeft / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1">
+      <Clock size={13} />
+      <span>Resets in {hours}h {minutes}m</span>
+    </div>
+  );
 };
 
 const formatDate = (dateStr) => {
@@ -347,7 +380,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
   );
 };
 
-const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, openSeasonManager, myPoints, totalPoints, avgPoints, startEdit, isViewMode, playerName, dailyGoal, openGoalEditor }) => {
+const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, openSeasonManager, myPoints, totalPoints, avgPoints, startEdit, isViewMode, playerName, dailyGoal, openGoalEditor, onOpenChangelog }) => {
   const today = getTodayEST();
   // Ensure we use the isViewMode prop logic properly, but also double check locally
   const isViewingPast = selectedDate !== today;
@@ -389,6 +422,9 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
           <button onClick={() => setShowImportExport(true)} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-600/20">
             <Download size={18} /> Backup
           </button>
+          <button onClick={onOpenChangelog} className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-all flex items-center gap-2 text-sm border border-white/10">
+            <HelpCircle size={18} /> How It Works
+          </button>
         </div>
       </div>
     
@@ -398,6 +434,7 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
           <div className="text-gray-300 text-sm mb-1">
             {isViewingPast ? "Points on This Date" : "Today's Points"}
           </div>
+          {!isViewingPast && <ResetCountdown />}
           <div className={`text-4xl font-black tracking-tight ${myPoints >= dailyGoal ? 'text-green-400' : 'text-yellow-400'}`}>
             {myPoints}
             <span className="text-xl text-gray-500 font-normal ml-2">/ {dailyGoal}</span>
@@ -728,7 +765,9 @@ export default function App() {
   const [showImportExport, setShowImportExport] = useState(false);
   const [showSeasonManager, setShowSeasonManager] = useState(false);
   const [newSeasonInput, setNewSeasonInput] = useState('');
+  const [newSeasonGoalInput, setNewSeasonGoalInput] = useState('300');
   const [seasonStartInput, setSeasonStartInput] = useState('');
+  const [showChangelog, setShowChangelog] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [collapsedWorlds, setCollapsedWorlds] = useState({});
   const [seasonStartDate, setSeasonStartDate] = useState('');
@@ -763,6 +802,14 @@ export default function App() {
   // next chronologically. If no later season exists, this season is still ongoing (ends today).
   const getSeasonEndDate = (seasonNum, startDateStr) => {
     const today = getTodayEST();
+
+    // An explicit end date (set via "End Season") always wins — it means the guild/tracker
+    // owner deliberately closed this season out, regardless of whether a later season exists.
+    const explicitEnd = localStorage.getItem(`hyyerr_season_end_season${seasonNum}`);
+    if (explicitEnd) {
+      return explicitEnd < today ? explicitEnd : today;
+    }
+
     if (!startDateStr) return today;
 
     let earliestLaterStart = null;
@@ -790,9 +837,14 @@ export default function App() {
       const d = String(endDate.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
-    // No later season found — this is the current/ongoing season.
+    // No later season found and no explicit end set — this season is still ongoing.
     return today;
   };
+
+  const isSeasonClosed = (seasonNum, startDateStr) => {
+    return getSeasonEndDate(seasonNum, startDateStr) < getTodayEST();
+  };
+
 
   const getSeasonDates = () => {
     const dates = [];
@@ -1050,11 +1102,16 @@ export default function App() {
     try { setNotes(storedNotes ? JSON.parse(storedNotes) : {}); } catch (e) { setNotes({}); }
     setSeasonStartDate(storedStart || '');
 
+    // If this season has already ended (a later season started, or it was manually
+    // ended), land on its actual last tracked day instead of "today" — today's data
+    // belongs to whatever season is currently active, not this one.
+    const seasonEnd = getSeasonEndDate(seasonNum, storedStart);
     const today = getTodayEST();
-    setSelectedDate(today);
-    setIsViewMode(false);
+    const landingDate = seasonEnd < today ? seasonEnd : today;
+    setSelectedDate(landingDate);
+    setIsViewMode(landingDate !== today);
 
-    const storedPlayer = localStorage.getItem(`hyyerr_player_${today}`);
+    const storedPlayer = localStorage.getItem(`hyyerr_player_${landingDate}`);
     if (storedPlayer) {
       try { setCurrentPlayer(JSON.parse(storedPlayer)); } catch (e) { setCurrentPlayer(createEmptyPlayer(playerName)); }
     } else {
@@ -1076,11 +1133,14 @@ export default function App() {
     setShowSeasonManager(false);
   };
 
-  const startNewSeason = (seasonNum) => {
+  const startNewSeason = (seasonNum, goalValue) => {
     if (!seasonNum || isNaN(seasonNum) || seasonNum < 1) {
       showModal('Invalid Season', 'Please enter a valid season number.', 'alert');
       return;
     }
+    const parsedGoal = parseInt(goalValue, 10);
+    const newSeasonGoal = (!isNaN(parsedGoal) && parsedGoal > 0) ? parsedGoal : dailyGoal;
+
     forceSaveCurrentState();
 
     const seasonKey = `season${seasonNum}`;
@@ -1091,11 +1151,13 @@ export default function App() {
     localStorage.setItem(`hyyerr_season_start_${seasonKey}`, today);
     localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify({}));
     localStorage.setItem('hyyerr_current_season', seasonNum.toString());
-    // New season inherits whatever the goal currently is as its own starting value —
-    // it's saved under its own key so editing it later won't affect any other season.
-    localStorage.setItem(`hyyerr_daily_goal_season${seasonNum}`, dailyGoal.toString());
+    // New season gets its own goal, set right at creation, saved under its own key
+    // so editing it later won't affect any other season.
+    localStorage.setItem(`hyyerr_daily_goal_season${seasonNum}`, newSeasonGoal.toString());
 
     setCurrentSeason(seasonNum);
+    setDailyGoal(newSeasonGoal);
+    setGoalInput(newSeasonGoal.toString());
     setHistory({});
     setNotes({});
     setSeasonStartDate(today);
@@ -1104,11 +1166,12 @@ export default function App() {
     setCurrentPlayer(freshPlayer);
     setShowSeasonManager(false);
 
-    showModal('New Season Started', `Season ${seasonNum} has begun! Tracking starts today.`, 'info');
+    showModal('New Season Started', `Season ${seasonNum} has begun with a goal of ${newSeasonGoal} points! Tracking starts today.`, 'info');
   };
 
   const openSeasonManager = () => {
     setNewSeasonInput(String(currentSeason + 1));
+    setNewSeasonGoalInput(dailyGoal.toString());
     setSeasonStartInput(seasonStartDate || getTodayEST());
     setShowSeasonManager(true);
   };
@@ -1127,6 +1190,25 @@ export default function App() {
     setSeasonStartDate(seasonStartInput);
     localStorage.setItem(`hyyerr_season_start_${seasonKey}`, seasonStartInput);
     showModal('Start Date Updated', `Season ${currentSeason} now starts on ${formatDate(seasonStartInput)}. Any days from that date onward will show up in the calendar and season stats.`, 'info');
+  };
+
+  const endCurrentSeason = () => {
+    const today = getTodayEST();
+    showModal(
+      'End This Season?',
+      `This marks Season ${currentSeason} as finished as of today (${formatDate(today)}). Its calendar and stats will stop here — you can still view and export it anytime, and you don't have to start a new season right away.`,
+      'confirm',
+      () => {
+        localStorage.setItem(`hyyerr_season_end_season${currentSeason}`, today);
+        setShowSeasonManager(false);
+        showModal('Season Ended', `Season ${currentSeason} has been marked as ended on ${formatDate(today)}.`, 'info');
+      }
+    );
+  };
+
+  const reopenCurrentSeason = () => {
+    localStorage.removeItem(`hyyerr_season_end_season${currentSeason}`);
+    showModal('Season Reopened', `Season ${currentSeason} is ongoing again and will keep counting new days.`, 'info');
   };
 
   const startEdit = (date, points) => {
@@ -1182,6 +1264,63 @@ export default function App() {
         showModal('Success', 'Entry deleted successfully.', 'info');
       }
     );
+  };
+
+  const exportSeasonReport = () => {
+    try {
+      const dates = getSeasonDates(); // chronological, already bounded to this season's actual start/end
+      const seasonEndStr = getSeasonEndDate(currentSeason, seasonStartDate);
+      const seasonClosed = isSeasonClosed(currentSeason, seasonStartDate);
+      const seasonAnalytics = calculateAnalytics();
+      const trackedDates = dates.filter(d => history[d] !== undefined);
+      const seasonTotalPoints = trackedDates.reduce((sum, d) => sum + (history[d] || 0), 0);
+      const seasonAvgPoints = trackedDates.length > 0 ? Math.round(seasonTotalPoints / trackedDates.length) : 0;
+
+      const esc = (val) => {
+        const str = String(val ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      const row = (arr) => arr.map(esc).join(',');
+
+      const rows = [];
+      rows.push(row(['World Zero Guild Point Tracker - Season Report']));
+      rows.push(row(['Guild Member', playerName]));
+      rows.push(row(['Season', currentSeason]));
+      rows.push(row(['Start Date', formatDate(seasonStartDate) || 'Unknown']));
+      rows.push(row(['End Date', seasonClosed ? formatDate(seasonEndStr) : 'Ongoing']));
+      rows.push(row(['Daily Goal', dailyGoal]));
+      rows.push(row(['Total Days Tracked', trackedDates.length]));
+      rows.push(row(['Total Points', seasonTotalPoints]));
+      rows.push(row(['Average Points / Day', seasonAvgPoints]));
+      rows.push(row(['Days Goal Met', seasonAnalytics.daysWithGoal]));
+      rows.push(row(['Goal Completion %', `${seasonAnalytics.goalPercentage}%`]));
+      rows.push(row(['Best Day', seasonAnalytics.bestDay ? `${formatDate(seasonAnalytics.bestDay)} (${seasonAnalytics.bestDayPoints} pts)` : 'N/A']));
+      rows.push(row(['']));
+      rows.push(row(['Date', 'Points', 'Goal Met']));
+
+      dates.forEach(date => {
+        const pts = history[date];
+        if (pts === undefined) return; // skip days with no recorded data
+        rows.push(row([formatDate(date), pts, pts >= dailyGoal ? 'Yes' : 'No']));
+      });
+
+      const csvString = rows.join('\n');
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `world-zero-season${currentSeason}-report-${getTodayEST()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showModal('Report Exported', `Season ${currentSeason}'s point report has been downloaded as a spreadsheet (CSV) file — ready to open in Excel/Sheets or share with another guild.`, 'info');
+    } catch (error) {
+      showModal('Error', 'Error exporting season report: ' + error.message, 'alert');
+    }
   };
 
   const exportData = () => {
@@ -1382,6 +1521,7 @@ export default function App() {
           playerName={playerName}
           dailyGoal={dailyGoal}
           openGoalEditor={openGoalEditor}
+          onOpenChangelog={() => setShowChangelog(true)}
         />
 
         <GuildQuestSection 
@@ -1554,6 +1694,89 @@ export default function App() {
         </div>
       )}
 
+      {/* Changelog / How It Works Modal */}
+      {showChangelog && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full border border-white/20 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 pb-2">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <HelpCircle className="text-teal-400" size={22} /> How It Works
+              </h3>
+              <button onClick={() => setShowChangelog(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-5 text-sm">
+              <div>
+                <h4 className="text-white font-bold mb-1">Daily Tracking</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  Check off dungeons, bosses, towers, and guild quests as you complete them each day.
+                  Points add up automatically at the top. The Daily Bonus checkbox adds +25 pts, and
+                  Custom / Event Points let you add a label and point value for one-off events (like
+                  special guild point events) that don't fit the normal categories.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Daily Goal</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  Click the pencil icon next to your points total to set your guild's current point goal.
+                  Each season keeps its own goal — changing it only affects the season you're currently
+                  viewing, so past seasons keep whatever goal they actually had.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Reset Countdown</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  World Zero's daily reset is shown as a live countdown under "Today's Points." It's
+                  calculated from the game's actual reset moment, so it stays accurate through Daylight
+                  Saving Time changes without needing any manual adjustment.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Seasons</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  Click the "Season X" button to switch between seasons, start a new one, backdate a
+                  season's start (if tracking began after the season actually started), or end the
+                  current season early. A season's history automatically stops counting once a later
+                  season begins, so old seasons no longer keep collecting new days after they're over.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Season Report</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  From the Season Manager, export a full spreadsheet (CSV) of every tracked day in a
+                  season — points, whether the goal was hit, and season totals/averages. Handy for
+                  sharing historical performance with another guild or keeping your own records.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Calendar &amp; Analytics</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  The Calendar shows every tracked day color-coded by whether that day's goal was hit,
+                  and lets you click any date to view or edit it. Analytics shows streaks, weekly
+                  averages, best day, and percentage of days the goal was met.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Backup &amp; Restore</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  Everything is saved locally in your browser only — nothing is stored in the cloud.
+                  Use the Backup button regularly to export a JSON file of all your data, especially
+                  before clearing browser data or switching devices. Import restores from a backup file.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Daily Goal Editor Modal */}
       {showGoalEditor && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
@@ -1591,8 +1814,8 @@ export default function App() {
       {/* Season Manager Modal */}
       {showSeasonManager && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-teal-500/30 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-teal-500/30 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6 sticky top-0 bg-gray-900 pb-2">
               <h3 className="text-xl font-bold text-white">Manage Seasons</h3>
               <button onClick={() => setShowSeasonManager(false)} className="text-gray-400 hover:text-white">
                 <X size={24} />
@@ -1618,7 +1841,50 @@ export default function App() {
               </div>
             </div>
 
-            <div className="pt-4 pb-4 border-t border-white/10">
+            <div className="pb-4 border-b border-white/10 mb-4">
+              <button
+                onClick={exportSeasonReport}
+                className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <FileSpreadsheet size={18} /> Export Season {currentSeason} Report (CSV)
+              </button>
+              <p className="text-gray-500 text-xs mt-2 leading-relaxed">
+                Downloads a spreadsheet with every tracked day, points, goal hits, and season totals — easy to share with another guild.
+              </p>
+            </div>
+
+            <div className="pb-4 border-b border-white/10 mb-4">
+              <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">
+                Season {currentSeason} Status
+              </div>
+              {isSeasonClosed(currentSeason, seasonStartDate) ? (
+                <>
+                  <p className="text-gray-500 text-xs mb-3 leading-relaxed">
+                    This season is marked as ended on {formatDate(getSeasonEndDate(currentSeason, seasonStartDate))}. It no longer counts new days.
+                  </p>
+                  <button
+                    onClick={reopenCurrentSeason}
+                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Reopen Season
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500 text-xs mb-3 leading-relaxed">
+                    Ongoing — counting new days automatically. End it manually if this season is over but you're not starting a new one yet.
+                  </p>
+                  <button
+                    onClick={endCurrentSeason}
+                    className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FlagOff size={16} /> End Season {currentSeason}
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="pt-2 pb-4 border-b border-white/10 mb-4">
               <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">
                 Season {currentSeason} Start Date
               </div>
@@ -1642,25 +1908,37 @@ export default function App() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/10">
+            <div className="pt-2">
               <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Start a New Season</div>
               <p className="text-gray-500 text-xs mb-3 leading-relaxed">
-                This starts a fresh season from today. Past seasons stay saved and can be revisited anytime.
+                This starts a fresh season from today, with whatever goal you set below. Past seasons stay saved and can be revisited anytime.
               </p>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={newSeasonInput}
-                  onChange={(e) => setNewSeasonInput(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                />
-                <button
-                  onClick={() => startNewSeason(parseInt(newSeasonInput))}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
-                >
-                  Start Season
-                </button>
+              <div className="flex gap-2 mb-2">
+                <div className="flex-1">
+                  <label className="text-gray-500 text-xs mb-1 block">Season Number</label>
+                  <input
+                    type="number"
+                    value={newSeasonInput}
+                    onChange={(e) => setNewSeasonInput(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-gray-500 text-xs mb-1 block">Daily Goal</label>
+                  <input
+                    type="number"
+                    value={newSeasonGoalInput}
+                    onChange={(e) => setNewSeasonGoalInput(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  />
+                </div>
               </div>
+              <button
+                onClick={() => startNewSeason(parseInt(newSeasonInput), newSeasonGoalInput)}
+                className="w-full px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                Start Season
+              </button>
             </div>
           </div>
         </div>
