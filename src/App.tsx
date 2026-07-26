@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, Target, Calendar, Edit2, Check, X, BarChart3, 
   Download, Upload, ChevronDown, ChevronUp, AlertTriangle, 
-  Info, ExternalLink, BookOpen, Gamepad2, MessageCircle, HelpCircle 
+  Info, ExternalLink, BookOpen, Gamepad2, MessageCircle, HelpCircle,
+  Layers, Gift, Plus
 } from 'lucide-react';
 
 // [INSTRUCTION]: Uncomment this line for your GitHub/Vercel build
@@ -170,8 +171,25 @@ const calculatePoints = (player) => {
   if (player.guildQuests.medium) points += 50;
   if (player.guildQuests.hard) points += 100;
 
+  if (player.flags?.dailyBonus) points += 25;
+
+  if (player.customEntries && player.customEntries.length > 0) {
+    points += player.customEntries.reduce((sum, entry) => sum + (Number(entry.points) || 0), 0);
+  }
+
   return points;
 };
+
+const createEmptyPlayer = (name) => ({
+  name,
+  dungeons: {},
+  worldEvents: {},
+  towers: {},
+  infiniteTower: { floor: 0 },
+  guildQuests: { easy: false, medium: false, hard: false },
+  flags: { dailyBonus: false },
+  customEntries: []
+});
 
 // ==========================================
 // SUB-COMPONENTS
@@ -313,7 +331,7 @@ const LandingPage = ({ onEnter, playerName, setPlayerName }) => {
   );
 };
 
-const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, myPoints, totalPoints, avgPoints, startEdit, isViewMode, playerName }) => {
+const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, setShowAnalytics, setShowCalendar, setShowImportExport, openSeasonManager, myPoints, totalPoints, avgPoints, startEdit, isViewMode, playerName, dailyGoal, openGoalEditor }) => {
   const today = getTodayEST();
   // Ensure we use the isViewMode prop logic properly, but also double check locally
   const isViewingPast = selectedDate !== today;
@@ -349,6 +367,9 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
           <button onClick={() => setShowCalendar(true)} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20">
             <Calendar size={18} /> Calendar
           </button>
+          <button onClick={openSeasonManager} className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-teal-600/20">
+            <Layers size={18} /> Season {currentSeason}
+          </button>
           <button onClick={() => setShowImportExport(true)} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-600/20">
             <Download size={18} /> Backup
           </button>
@@ -361,14 +382,21 @@ const HeaderSection = ({ currentPlayer, currentSeason, selectedDate, setView, se
           <div className="text-gray-300 text-sm mb-1">
             {isViewingPast ? "Points on This Date" : "Today's Points"}
           </div>
-          <div className={`text-4xl font-black tracking-tight ${myPoints >= 300 ? 'text-green-400' : 'text-yellow-400'}`}>
+          <div className={`text-4xl font-black tracking-tight ${myPoints >= dailyGoal ? 'text-green-400' : 'text-yellow-400'}`}>
             {myPoints}
-            <span className="text-xl text-gray-500 font-normal ml-2">/ 300</span>
+            <span className="text-xl text-gray-500 font-normal ml-2">/ {dailyGoal}</span>
+            <button
+              onClick={openGoalEditor}
+              className="inline-flex items-center justify-center ml-2 align-middle text-gray-500 hover:text-yellow-400 transition-colors"
+              title="Edit daily goal"
+            >
+              <Edit2 size={16} />
+            </button>
           </div>
           <div className="mt-3 bg-gray-800 rounded-full h-3 overflow-hidden">
             <div 
-              className={`h-full rounded-full transition-all duration-500 ease-out ${myPoints >= 300 ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`}
-              style={{ width: `${Math.min((myPoints / 300) * 100, 100)}%` }}
+              className={`h-full rounded-full transition-all duration-500 ease-out ${myPoints >= dailyGoal ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`}
+              style={{ width: `${Math.min((myPoints / dailyGoal) * 100, 100)}%` }}
             />
           </div>
           {isViewingPast && (
@@ -448,6 +476,90 @@ const GuildQuestSection = ({ currentPlayer, updateCompletion }) => (
     </div>
   </div>
 );
+
+const BonusPointsSection = ({ currentPlayer, updateCompletion, addCustomEntry, removeCustomEntry }) => {
+  const [labelInput, setLabelInput] = useState('');
+  const [pointsInput, setPointsInput] = useState('');
+
+  const handleAdd = () => {
+    if (!labelInput.trim() || pointsInput === '') return;
+    addCustomEntry(labelInput, pointsInput);
+    setLabelInput('');
+    setPointsInput('');
+  };
+
+  const customEntries = currentPlayer.customEntries || [];
+  const customTotal = customEntries.reduce((sum, e) => sum + (Number(e.points) || 0), 0);
+
+  return (
+    <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <Gift className="text-teal-400" size={24} />
+        Bonus &amp; Event Points
+      </h2>
+
+      <label className={`quest-card flex items-center gap-3 rounded-xl p-4 cursor-pointer transition-all mb-4 border ${currentPlayer.flags?.dailyBonus ? 'bg-yellow-500/20 border-yellow-400' : 'bg-white/5 hover:bg-white/10 border-white/10'}`}>
+        <div className="relative flex items-center">
+          <input
+            type="checkbox"
+            checked={currentPlayer.flags?.dailyBonus || false}
+            onChange={(e) => updateCompletion('flags', null, { dailyBonus: e.target.checked })}
+            className="peer w-6 h-6 rounded border-2 border-gray-500 checked:border-transparent checked:bg-yellow-500 transition-all appearance-none cursor-pointer"
+          />
+          <Check className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-black opacity-0 peer-checked:opacity-100 pointer-events-none" size={14} />
+        </div>
+        <div>
+          <div className="text-white font-semibold">Daily Bonus</div>
+          <div className="text-yellow-400 text-sm font-bold">+25 points</div>
+        </div>
+      </label>
+
+      <div className="bg-black/20 rounded-xl p-4">
+        <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-3">
+          Event / Custom Points{customTotal > 0 ? ` (+${customTotal} pts today)` : ''}
+        </div>
+
+        {customEntries.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {customEntries.map(entry => (
+              <div key={entry.id} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2 border border-white/10">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-white text-sm font-medium truncate">{entry.label}</span>
+                  <span className="text-teal-400 text-xs font-bold shrink-0">+{entry.points} pts</span>
+                </div>
+                <button onClick={() => removeCustomEntry(entry.id)} className="text-gray-500 hover:text-red-400 transition-colors shrink-0 ml-2">
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            value={labelInput}
+            onChange={(e) => setLabelInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder="e.g. Double Guild Point Event"
+            className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-400"
+          />
+          <input
+            type="number"
+            value={pointsInput}
+            onChange={(e) => setPointsInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder="Points"
+            className="w-full sm:w-24 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-400"
+          />
+          <button onClick={handleAdd} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1 whitespace-nowrap">
+            <Plus size={16} /> Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TowerSection = ({ currentPlayer, updateCompletion }) => (
   <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 md:p-6 mb-4 shadow-xl border border-white/10">
@@ -592,9 +704,14 @@ export default function App() {
   const [editingDate, setEditingDate] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [currentSeason, setCurrentSeason] = useState(18);
+  const [dailyGoal, setDailyGoal] = useState(300);
+  const [showGoalEditor, setShowGoalEditor] = useState(false);
+  const [goalInput, setGoalInput] = useState('300');
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showImportExport, setShowImportExport] = useState(false);
+  const [showSeasonManager, setShowSeasonManager] = useState(false);
+  const [newSeasonInput, setNewSeasonInput] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [collapsedWorlds, setCollapsedWorlds] = useState({});
   const [seasonStartDate, setSeasonStartDate] = useState('');
@@ -659,6 +776,15 @@ export default function App() {
   useEffect(() => {
     const storedName = localStorage.getItem('hyyerr_player_name');
     if (storedName) setPlayerName(storedName);
+
+    const storedGoal = localStorage.getItem('hyyerr_daily_goal');
+    if (storedGoal) {
+      const parsedGoal = parseInt(storedGoal, 10);
+      if (!isNaN(parsedGoal) && parsedGoal > 0) {
+        setDailyGoal(parsedGoal);
+        setGoalInput(parsedGoal.toString());
+      }
+    }
 
     const storedSeason = localStorage.getItem('hyyerr_current_season');
     const season = storedSeason ? parseInt(storedSeason) : 18;
@@ -777,25 +903,30 @@ export default function App() {
         setCurrentPlayer(JSON.parse(stored));
       } catch (e) { console.error(e); }
     } else {
-      const newPlayer = {
-        name,
-        dungeons: {},
-        worldEvents: {},
-        towers: {},
-        infiniteTower: { floor: 0 },
-        guildQuests: { easy: false, medium: false, hard: false }
-      };
-      setCurrentPlayer(newPlayer);
+      setCurrentPlayer(createEmptyPlayer(name));
     }
     setView('tracker');
   };
 
-  const updateCompletion = (category, key, value) => {
+  // Shared save-on-explicit-edit logic for past dates (mirrors updateCompletion's past-date handling)
+  const persistIfPastDate = (updated) => {
     const today = getTodayEST();
-    
+    if (selectedDate !== today) {
+      localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(updated));
+
+      const points = calculatePoints(updated);
+      const seasonKey = `season${currentSeason}`;
+      const updatedHistory = { ...history, [selectedDate]: points };
+
+      setHistory(updatedHistory);
+      localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
+    }
+  };
+
+  const updateCompletion = (category, key, value) => {
     // We calculate the new state immediately to handle past-date saving
     const updated = { ...currentPlayer };
-    if (category === 'guildQuests' || category === 'infiniteTower') {
+    if (category === 'guildQuests' || category === 'infiniteTower' || category === 'flags') {
       updated[category] = { ...updated[category], ...value };
     } else {
       updated[category] = { ...updated[category], [key]: value };
@@ -806,17 +937,104 @@ export default function App() {
     // CRITICAL UPDATE: If this is a past date, we must manually trigger the save here.
     // The main useEffect is blocked for past dates to prevent "auto-wiping" on navigation.
     // But if the user *explicitly* clicks a checkbox, we want to save that action.
-    if (selectedDate !== today) {
-       localStorage.setItem(`hyyerr_player_${selectedDate}`, JSON.stringify(updated));
-       
-       const points = calculatePoints(updated);
-       const seasonKey = `season${currentSeason}`;
-       const updatedHistory = { ...history, [selectedDate]: points };
-       
-       // Update history state (which updates the UI score immediately)
-       setHistory(updatedHistory);
-       localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify(updatedHistory));
+    persistIfPastDate(updated);
+  };
+
+  const addCustomEntry = (label, pointsValue) => {
+    if (!currentPlayer) return;
+    const points = Number(pointsValue);
+    if (!label.trim() || isNaN(points)) return;
+    const newEntry = {
+      id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      label: label.trim(),
+      points
+    };
+    const updated = { ...currentPlayer, customEntries: [...(currentPlayer.customEntries || []), newEntry] };
+    setCurrentPlayer(updated);
+    persistIfPastDate(updated);
+  };
+
+  const removeCustomEntry = (id) => {
+    if (!currentPlayer) return;
+    const updated = { ...currentPlayer, customEntries: (currentPlayer.customEntries || []).filter(e => e.id !== id) };
+    setCurrentPlayer(updated);
+    persistIfPastDate(updated);
+  };
+
+  // --- Season Management ---
+  const getAvailableSeasons = () => {
+    const seasons = new Set();
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const match = key.match(/^hyyerr_(?:points_history|season_start|notes)_season(\d+)$/);
+      if (match) seasons.add(parseInt(match[1], 10));
     }
+    seasons.add(currentSeason);
+    return Array.from(seasons).sort((a, b) => b - a);
+  };
+
+  const switchSeason = (seasonNum) => {
+    if (seasonNum === currentSeason) { setShowSeasonManager(false); return; }
+    forceSaveCurrentState();
+
+    const seasonKey = `season${seasonNum}`;
+    const storedHistory = localStorage.getItem(`hyyerr_points_history_${seasonKey}`);
+    const storedNotes = localStorage.getItem(`hyyerr_notes_${seasonKey}`);
+    const storedStart = localStorage.getItem(`hyyerr_season_start_${seasonKey}`);
+
+    setCurrentSeason(seasonNum);
+    localStorage.setItem('hyyerr_current_season', seasonNum.toString());
+
+    try { setHistory(storedHistory ? JSON.parse(storedHistory) : {}); } catch (e) { setHistory({}); }
+    try { setNotes(storedNotes ? JSON.parse(storedNotes) : {}); } catch (e) { setNotes({}); }
+    setSeasonStartDate(storedStart || '');
+
+    const today = getTodayEST();
+    setSelectedDate(today);
+    setIsViewMode(false);
+
+    const storedPlayer = localStorage.getItem(`hyyerr_player_${today}`);
+    if (storedPlayer) {
+      try { setCurrentPlayer(JSON.parse(storedPlayer)); } catch (e) { setCurrentPlayer(createEmptyPlayer(playerName)); }
+    } else {
+      setCurrentPlayer(createEmptyPlayer(playerName));
+    }
+
+    setShowSeasonManager(false);
+  };
+
+  const startNewSeason = (seasonNum) => {
+    if (!seasonNum || isNaN(seasonNum) || seasonNum < 1) {
+      showModal('Invalid Season', 'Please enter a valid season number.', 'alert');
+      return;
+    }
+    forceSaveCurrentState();
+
+    const seasonKey = `season${seasonNum}`;
+    const today = getTodayEST();
+    const freshPlayer = createEmptyPlayer(playerName);
+
+    localStorage.setItem(`hyyerr_player_${today}`, JSON.stringify(freshPlayer));
+    localStorage.setItem(`hyyerr_season_start_${seasonKey}`, today);
+    localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify({}));
+    localStorage.setItem('hyyerr_current_season', seasonNum.toString());
+
+    setCurrentSeason(seasonNum);
+    setHistory({});
+    setNotes({});
+    setSeasonStartDate(today);
+    setSelectedDate(today);
+    setIsViewMode(false);
+    setCurrentPlayer(freshPlayer);
+    setShowSeasonManager(false);
+
+    showModal('New Season Started', `Season ${seasonNum} has begun! Tracking starts today.`, 'info');
+  };
+
+  const openSeasonManager = () => {
+    setNewSeasonInput(String(currentSeason + 1));
+    setShowSeasonManager(true);
   };
 
   const startEdit = (date, points) => {
@@ -936,6 +1154,23 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const openGoalEditor = () => {
+    setGoalInput(dailyGoal.toString());
+    setShowGoalEditor(true);
+  };
+
+  const saveDailyGoal = () => {
+    const newGoal = parseInt(goalInput, 10);
+    if (isNaN(newGoal) || newGoal <= 0) {
+      showModal('Invalid Goal', 'Please enter a valid number greater than 0.', 'alert');
+      return;
+    }
+    setDailyGoal(newGoal);
+    localStorage.setItem('hyyerr_daily_goal', newGoal.toString());
+    setShowGoalEditor(false);
+    showModal('Goal Updated', `Daily goal is now set to ${newGoal} points.`, 'info');
+  };
+
   const toggleWorld = (worldNum) => {
     setCollapsedWorlds(prev => ({ ...prev, [worldNum]: !prev[worldNum] }));
   };
@@ -951,7 +1186,7 @@ export default function App() {
         return seasonDates.includes(date) && dateObj >= season18Start && dateObj <= today;
       }).sort();
     
-    const daysWithGoal = allDates.filter(d => history[d] >= 300).length;
+    const daysWithGoal = allDates.filter(d => history[d] >= dailyGoal).length;
     const goalPercentage = allDates.length > 0 ? Math.round((daysWithGoal / allDates.length) * 100) : 0;
     
     let currentStreak = 0;
@@ -959,7 +1194,7 @@ export default function App() {
     let loopLimit = 365; 
     while (loopLimit > 0) {
       const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-      if (history[dateStr] && history[dateStr] >= 300) {
+      if (history[dateStr] && history[dateStr] >= dailyGoal) {
         currentStreak++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else { break; }
@@ -1046,47 +1281,36 @@ export default function App() {
           setShowAnalytics={setShowAnalytics}
           setShowCalendar={setShowCalendar}
           setShowImportExport={setShowImportExport}
+          openSeasonManager={openSeasonManager}
           myPoints={myPoints}
           totalPoints={totalPoints}
           avgPoints={avgPoints}
           startEdit={startEdit}
           isViewMode={isViewMode}
           playerName={playerName}
+          dailyGoal={dailyGoal}
+          openGoalEditor={openGoalEditor}
         />
 
         <GuildQuestSection 
-          currentPlayer={currentPlayer || {
-            name: playerName,
-            dungeons: {},
-            worldEvents: {},
-            towers: {},
-            infiniteTower: { floor: 0 },
-            guildQuests: { easy: false, medium: false, hard: false }
-          }} 
+          currentPlayer={currentPlayer || createEmptyPlayer(playerName)} 
           updateCompletion={updateCompletion} 
         />
 
+        <BonusPointsSection
+          currentPlayer={currentPlayer || createEmptyPlayer(playerName)}
+          updateCompletion={updateCompletion}
+          addCustomEntry={addCustomEntry}
+          removeCustomEntry={removeCustomEntry}
+        />
+
         <TowerSection 
-          currentPlayer={currentPlayer || {
-            name: playerName,
-            dungeons: {},
-            worldEvents: {},
-            towers: {},
-            infiniteTower: { floor: 0 },
-            guildQuests: { easy: false, medium: false, hard: false }
-          }} 
+          currentPlayer={currentPlayer || createEmptyPlayer(playerName)} 
           updateCompletion={updateCompletion} 
         />
 
         <WorldGrid 
-          currentPlayer={currentPlayer || {
-            name: playerName,
-            dungeons: {},
-            worldEvents: {},
-            towers: {},
-            infiniteTower: { floor: 0 },
-            guildQuests: { easy: false, medium: false, hard: false }
-          }} 
+          currentPlayer={currentPlayer || createEmptyPlayer(playerName)} 
           updateCompletion={updateCompletion} 
           collapsedWorlds={collapsedWorlds} 
           toggleWorld={toggleWorld} 
@@ -1161,14 +1385,7 @@ export default function App() {
                       }
                     } else {
                       // For dates with no stored player data, set empty player
-                      setCurrentPlayer({
-                        name: playerName,
-                        dungeons: {},
-                        worldEvents: {},
-                        towers: {},
-                        infiniteTower: { floor: 0 },
-                        guildQuests: { easy: false, medium: false, hard: false }
-                      });
+                      setCurrentPlayer(createEmptyPlayer(playerName));
                     }
                     
                     setShowCalendar(false);
@@ -1177,7 +1394,7 @@ export default function App() {
                     date === selectedDate
                       ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-500/50'
                       : datePoints > 0
-                      ? datePoints >= 300
+                      ? datePoints >= dailyGoal
                         ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20'
                         : 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20'
                       : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -1186,7 +1403,7 @@ export default function App() {
                   <div className="text-white text-sm font-medium mb-1">{formatDate(date)}</div>
                   <div className={`text-xs font-bold ${
                     datePoints > 0
-                      ? datePoints >= 300
+                      ? datePoints >= dailyGoal
                         ? 'text-green-400'
                         : 'text-yellow-400'
                       : 'text-gray-500'
@@ -1214,7 +1431,7 @@ export default function App() {
               <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Goal Completion</div>
                 <div className="text-4xl font-bold text-green-400">{analytics.goalPercentage}%</div>
-                <div className="text-xs text-green-400/60 mt-2">Days with 300+ pts</div>
+                <div className="text-xs text-green-400/60 mt-2">Days with {dailyGoal}+ pts</div>
               </div>
               <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl p-5 border border-orange-500/30">
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Current Streak</div>
@@ -1239,6 +1456,94 @@ export default function App() {
                 <div className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
                 <div className="text-4xl font-bold text-teal-400">{avgPoints}</div>
                 <div className="text-xs text-teal-400/60 mt-2">Lifetime Season Avg</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Goal Editor Modal */}
+      {showGoalEditor && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-sm w-full border border-yellow-500/30 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">Set Daily Goal</h3>
+              <button onClick={() => setShowGoalEditor(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">
+              Change your daily point target. This affects your progress bar, calendar colors, and streak/goal analytics.
+            </p>
+            <input
+              type="number"
+              value={goalInput}
+              onChange={(e) => setGoalInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && saveDailyGoal()}
+              className="w-full px-4 py-3 rounded-lg bg-black/50 border border-white/20 text-white mb-6 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-lg"
+              placeholder="Enter daily goal"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={saveDailyGoal} className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2 font-semibold">
+                <Check size={18} /> Save
+              </button>
+              <button onClick={() => setShowGoalEditor(false)} className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold">
+                <X size={18} /> Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Season Manager Modal */}
+      {showSeasonManager && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full border border-teal-500/30 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Manage Seasons</h3>
+              <button onClick={() => setShowSeasonManager(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Switch Season</div>
+              <div className="flex flex-wrap gap-2">
+                {getAvailableSeasons().map(s => (
+                  <button
+                    key={s}
+                    onClick={() => switchSeason(s)}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                      s === currentSeason
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
+                    }`}
+                  >
+                    Season {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-white/10">
+              <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Start a New Season</div>
+              <p className="text-gray-500 text-xs mb-3 leading-relaxed">
+                This starts a fresh season from today. Past seasons stay saved and can be revisited anytime.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={newSeasonInput}
+                  onChange={(e) => setNewSeasonInput(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                />
+                <button
+                  onClick={() => startNewSeason(parseInt(newSeasonInput))}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
+                >
+                  Start Season
+                </button>
               </div>
             </div>
           </div>
