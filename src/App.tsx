@@ -122,10 +122,26 @@ const WORLDS_DATA = [
 // HELPER FUNCTIONS
 // ==========================================
 
+// World Zero's daily reset happens at a fixed real-world moment, not a fixed Eastern clock hour.
+// That means the Eastern local hour of reset shifts by 1 hour depending on Daylight Saving Time:
+// 6 PM Eastern during EDT (spring/summer), 5 PM Eastern during EST (fall/winter).
+// This detects which one is currently active so the cutoff is always correct, even as clocks
+// change twice a year, with no manual updates needed.
+const isEasternDST = (date) => {
+  const tzName = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    timeZoneName: 'short'
+  }).formatToParts(date).find(part => part.type === 'timeZoneName');
+  return tzName?.value === 'EDT';
+};
+
+const getResetCutoffHour = (date) => (isEasternDST(date) ? 18 : 17);
+
 const getTodayEST = () => {
   const now = new Date();
   const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  if (estTime.getHours() < 17) {
+  const cutoffHour = getResetCutoffHour(now);
+  if (estTime.getHours() < cutoffHour) {
     estTime.setDate(estTime.getDate() - 1);
   }
   const year = estTime.getFullYear();
@@ -743,6 +759,41 @@ export default function App() {
     });
   };
 
+  // Finds when a season actually ended: the day before whichever OTHER season started
+  // next chronologically. If no later season exists, this season is still ongoing (ends today).
+  const getSeasonEndDate = (seasonNum, startDateStr) => {
+    const today = getTodayEST();
+    if (!startDateStr) return today;
+
+    let earliestLaterStart = null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const match = key.match(/^hyyerr_season_start_season(\d+)$/);
+      if (!match) continue;
+      const otherSeason = parseInt(match[1], 10);
+      if (otherSeason === seasonNum) continue;
+      const otherStart = localStorage.getItem(key);
+      if (!otherStart) continue;
+      if (otherStart > startDateStr) {
+        if (earliestLaterStart === null || otherStart < earliestLaterStart) {
+          earliestLaterStart = otherStart;
+        }
+      }
+    }
+
+    if (earliestLaterStart) {
+      const endDate = new Date(earliestLaterStart + 'T12:00:00');
+      endDate.setDate(endDate.getDate() - 1);
+      const y = endDate.getFullYear();
+      const m = String(endDate.getMonth() + 1).padStart(2, '0');
+      const d = String(endDate.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    // No later season found — this is the current/ongoing season.
+    return today;
+  };
+
   const getSeasonDates = () => {
     const dates = [];
     let startDate;
@@ -757,10 +808,12 @@ export default function App() {
         startDate.setDate(startDate.getDate() - 30);
       }
     }
-    const today = new Date(getTodayEST() + 'T12:00:00');
-    if (startDate > today) return [getTodayEST()];
 
-    for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+    const seasonEndStr = getSeasonEndDate(currentSeason, seasonStartDate);
+    const endDate = new Date(seasonEndStr + 'T12:00:00');
+    if (startDate > endDate) return [seasonEndStr];
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
@@ -778,18 +831,24 @@ export default function App() {
     const storedName = localStorage.getItem('hyyerr_player_name');
     if (storedName) setPlayerName(storedName);
 
-    const storedGoal = localStorage.getItem('hyyerr_daily_goal');
-    if (storedGoal) {
-      const parsedGoal = parseInt(storedGoal, 10);
+    const storedSeason = localStorage.getItem('hyyerr_current_season');
+    const season = storedSeason ? parseInt(storedSeason) : 18;
+    if (storedSeason) setCurrentSeason(season);
+
+    // Daily goal is per-season now (it used to be one shared value, which meant changing it
+    // for one season silently changed it for every season). Fall back to the old shared key
+    // only as a one-time migration default for seasons that don't have their own value saved yet.
+    const seasonGoalKey = `hyyerr_daily_goal_season${season}`;
+    const storedSeasonGoal = localStorage.getItem(seasonGoalKey);
+    const legacyGoal = localStorage.getItem('hyyerr_daily_goal');
+    const goalToUse = storedSeasonGoal || legacyGoal;
+    if (goalToUse) {
+      const parsedGoal = parseInt(goalToUse, 10);
       if (!isNaN(parsedGoal) && parsedGoal > 0) {
         setDailyGoal(parsedGoal);
         setGoalInput(parsedGoal.toString());
       }
     }
-
-    const storedSeason = localStorage.getItem('hyyerr_current_season');
-    const season = storedSeason ? parseInt(storedSeason) : 18;
-    if (storedSeason) setCurrentSeason(season);
 
     const seasonKey = `season${season}`;
     
@@ -1002,6 +1061,18 @@ export default function App() {
       setCurrentPlayer(createEmptyPlayer(playerName));
     }
 
+    // Each season keeps its own daily goal, so switching seasons should load THAT
+    // season's goal, not whatever the currently-viewed season happens to have set.
+    const storedSeasonGoal = localStorage.getItem(`hyyerr_daily_goal_season${seasonNum}`);
+    const legacyGoal = localStorage.getItem('hyyerr_daily_goal');
+    const goalToUse = storedSeasonGoal || legacyGoal;
+    if (goalToUse) {
+      const parsedGoal = parseInt(goalToUse, 10);
+      setDailyGoal(!isNaN(parsedGoal) && parsedGoal > 0 ? parsedGoal : 300);
+    } else {
+      setDailyGoal(300);
+    }
+
     setShowSeasonManager(false);
   };
 
@@ -1020,6 +1091,9 @@ export default function App() {
     localStorage.setItem(`hyyerr_season_start_${seasonKey}`, today);
     localStorage.setItem(`hyyerr_points_history_${seasonKey}`, JSON.stringify({}));
     localStorage.setItem('hyyerr_current_season', seasonNum.toString());
+    // New season inherits whatever the goal currently is as its own starting value —
+    // it's saved under its own key so editing it later won't affect any other season.
+    localStorage.setItem(`hyyerr_daily_goal_season${seasonNum}`, dailyGoal.toString());
 
     setCurrentSeason(seasonNum);
     setHistory({});
@@ -1184,9 +1258,9 @@ export default function App() {
       return;
     }
     setDailyGoal(newGoal);
-    localStorage.setItem('hyyerr_daily_goal', newGoal.toString());
+    localStorage.setItem(`hyyerr_daily_goal_season${currentSeason}`, newGoal.toString());
     setShowGoalEditor(false);
-    showModal('Goal Updated', `Daily goal is now set to ${newGoal} points.`, 'info');
+    showModal('Goal Updated', `Daily goal for Season ${currentSeason} is now set to ${newGoal} points. This only affects this season — other seasons keep their own goal.`, 'info');
   };
 
   const toggleWorld = (worldNum) => {
@@ -1196,21 +1270,24 @@ export default function App() {
   // --- Analytics & Render Prep ---
   const calculateAnalytics = () => {
     const seasonDates = getSeasonDates();
-    const season18Start = new Date('2024-11-14T12:00:00');
-    const today = new Date(getTodayEST() + 'T12:00:00');
     const allDates = Object.keys(history)
-      .filter(date => {
-        const dateObj = new Date(date + 'T12:00:00');
-        return seasonDates.includes(date) && dateObj >= season18Start && dateObj <= today;
-      }).sort();
+      .filter(date => seasonDates.includes(date))
+      .sort();
     
     const daysWithGoal = allDates.filter(d => history[d] >= dailyGoal).length;
     const goalPercentage = allDates.length > 0 ? Math.round((daysWithGoal / allDates.length) * 100) : 0;
     
+    // Streak is measured backward from this season's own end date (today, if it's still
+    // ongoing, or whenever it actually ended if a later season has already started),
+    // and stops once it reaches before the season's start — so an old season's streak
+    // reflects how it actually ended, not today's unrelated data.
+    const seasonEndStr = getSeasonEndDate(currentSeason, seasonStartDate);
     let currentStreak = 0;
-    let checkDate = new Date(getTodayEST() + 'T12:00:00');
+    let checkDate = new Date(seasonEndStr + 'T12:00:00');
+    const seasonStartBound = seasonStartDate ? new Date(seasonStartDate + 'T12:00:00') : null;
     let loopLimit = 365; 
     while (loopLimit > 0) {
+      if (seasonStartBound && checkDate < seasonStartBound) break;
       const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
       if (history[dateStr] && history[dateStr] >= dailyGoal) {
         currentStreak++;
@@ -1233,10 +1310,7 @@ export default function App() {
 
   const analytics = calculateAnalytics();
   const seasonDates = getSeasonDates();
-  const seasonHistoryDates = Object.keys(history).filter(date => {
-    const dateObj = new Date(date + 'T12:00:00');
-    return seasonDates.includes(date) && dateObj >= new Date('2024-11-14T12:00:00') && dateObj <= new Date(getTodayEST() + 'T12:00:00');
-  });
+  const seasonHistoryDates = Object.keys(history).filter(date => seasonDates.includes(date));
   const totalPoints = seasonHistoryDates.reduce((sum, date) => sum + (history[date] || 0), 0);
   const avgPoints = seasonHistoryDates.length > 0 ? Math.round(totalPoints / seasonHistoryDates.length) : 0;
   
