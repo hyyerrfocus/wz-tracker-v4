@@ -767,6 +767,8 @@ export default function App() {
   const [newSeasonInput, setNewSeasonInput] = useState('');
   const [newSeasonGoalInput, setNewSeasonGoalInput] = useState('300');
   const [seasonStartInput, setSeasonStartInput] = useState('');
+  const [seasonEndInput, setSeasonEndInput] = useState('');
+  const [seasonMetaTick, setSeasonMetaTick] = useState(0);
   const [showChangelog, setShowChangelog] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [collapsedWorlds, setCollapsedWorlds] = useState({});
@@ -1173,6 +1175,8 @@ export default function App() {
     setNewSeasonInput(String(currentSeason + 1));
     setNewSeasonGoalInput(dailyGoal.toString());
     setSeasonStartInput(seasonStartDate || getTodayEST());
+    const existingEnd = localStorage.getItem(`hyyerr_season_end_season${currentSeason}`);
+    setSeasonEndInput(existingEnd || getTodayEST());
     setShowSeasonManager(true);
   };
 
@@ -1192,22 +1196,29 @@ export default function App() {
     showModal('Start Date Updated', `Season ${currentSeason} now starts on ${formatDate(seasonStartInput)}. Any days from that date onward will show up in the calendar and season stats.`, 'info');
   };
 
-  const endCurrentSeason = () => {
+  const saveSeasonEndDate = () => {
+    if (!seasonEndInput) {
+      showModal('Invalid Date', 'Please choose an end date.', 'alert');
+      return;
+    }
     const today = getTodayEST();
-    showModal(
-      'End This Season?',
-      `This marks Season ${currentSeason} as finished as of today (${formatDate(today)}). Its calendar and stats will stop here — you can still view and export it anytime, and you don't have to start a new season right away.`,
-      'confirm',
-      () => {
-        localStorage.setItem(`hyyerr_season_end_season${currentSeason}`, today);
-        setShowSeasonManager(false);
-        showModal('Season Ended', `Season ${currentSeason} has been marked as ended on ${formatDate(today)}.`, 'info');
-      }
-    );
+    if (seasonEndInput > today) {
+      showModal('Invalid Date', 'End date cannot be in the future.', 'alert');
+      return;
+    }
+    if (seasonStartDate && seasonEndInput < seasonStartDate) {
+      showModal('Invalid Date', "End date can't be before this season's start date.", 'alert');
+      return;
+    }
+    localStorage.setItem(`hyyerr_season_end_season${currentSeason}`, seasonEndInput);
+    setSeasonMetaTick(t => t + 1);
+    showModal('Season End Date Set', `Season ${currentSeason} now ends on ${formatDate(seasonEndInput)}. Its calendar and stats stop counting there.`, 'info');
   };
 
   const reopenCurrentSeason = () => {
     localStorage.removeItem(`hyyerr_season_end_season${currentSeason}`);
+    setSeasonEndInput(getTodayEST());
+    setSeasonMetaTick(t => t + 1);
     showModal('Season Reopened', `Season ${currentSeason} is ongoing again and will keep counting new days.`, 'info');
   };
 
@@ -1739,10 +1750,20 @@ export default function App() {
               <div>
                 <h4 className="text-white font-bold mb-1">Seasons</h4>
                 <p className="text-gray-400 leading-relaxed">
-                  Click the "Season X" button to switch between seasons, start a new one, backdate a
-                  season's start (if tracking began after the season actually started), or end the
-                  current season early. A season's history automatically stops counting once a later
-                  season begins, so old seasons no longer keep collecting new days after they're over.
+                  Click the "Season X" button to switch between seasons, start a new one (with its own
+                  goal set right when you create it), or backdate a season's start if tracking began
+                  after it actually started. A season's history automatically stops counting once a
+                  later season begins, so old seasons don't keep collecting new days after they're over.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-1">Ending a Season</h4>
+                <p className="text-gray-400 leading-relaxed">
+                  For seasons that ended before this feature existed, use the date picker under
+                  "Season Status" to set the actual date it ended — it doesn't have to be today, you
+                  can enter any past date. Save it to lock that season's calendar/stats in place, or
+                  hit Reopen to make it ongoing again if you need to adjust it later.
                 </p>
               </div>
 
@@ -1858,29 +1879,37 @@ export default function App() {
                 Season {currentSeason} Status
               </div>
               {isSeasonClosed(currentSeason, seasonStartDate) ? (
-                <>
-                  <p className="text-gray-500 text-xs mb-3 leading-relaxed">
-                    This season is marked as ended on {formatDate(getSeasonEndDate(currentSeason, seasonStartDate))}. It no longer counts new days.
-                  </p>
-                  <button
-                    onClick={reopenCurrentSeason}
-                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    Reopen Season
-                  </button>
-                </>
+                <p className="text-gray-500 text-xs mb-3 leading-relaxed">
+                  Currently marked as ended on <span className="text-gray-300 font-semibold">{formatDate(getSeasonEndDate(currentSeason, seasonStartDate))}</span>. Change the date below and save, or reopen it to make it ongoing again.
+                </p>
               ) : (
-                <>
-                  <p className="text-gray-500 text-xs mb-3 leading-relaxed">
-                    Ongoing — counting new days automatically. End it manually if this season is over but you're not starting a new one yet.
-                  </p>
-                  <button
-                    onClick={endCurrentSeason}
-                    className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FlagOff size={16} /> End Season {currentSeason}
-                  </button>
-                </>
+                <p className="text-gray-500 text-xs mb-3 leading-relaxed">
+                  Currently ongoing — counting new days automatically. Pick the actual date it ended (doesn't have to be today) and save to close it out.
+                </p>
+              )}
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="date"
+                  value={seasonEndInput}
+                  onChange={(e) => setSeasonEndInput(e.target.value)}
+                  max={getTodayEST()}
+                  min={seasonStartDate || undefined}
+                  className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                />
+                <button
+                  onClick={saveSeasonEndDate}
+                  className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                >
+                  <FlagOff size={16} /> Set End Date
+                </button>
+              </div>
+              {isSeasonClosed(currentSeason, seasonStartDate) && (
+                <button
+                  onClick={reopenCurrentSeason}
+                  className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Reopen Season (make it ongoing again)
+                </button>
               )}
             </div>
 
