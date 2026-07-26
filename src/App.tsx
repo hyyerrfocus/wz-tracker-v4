@@ -712,6 +712,7 @@ export default function App() {
   const [showImportExport, setShowImportExport] = useState(false);
   const [showSeasonManager, setShowSeasonManager] = useState(false);
   const [newSeasonInput, setNewSeasonInput] = useState('');
+  const [seasonStartInput, setSeasonStartInput] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [collapsedWorlds, setCollapsedWorlds] = useState({});
   const [seasonStartDate, setSeasonStartDate] = useState('');
@@ -1034,7 +1035,24 @@ export default function App() {
 
   const openSeasonManager = () => {
     setNewSeasonInput(String(currentSeason + 1));
+    setSeasonStartInput(seasonStartDate || getTodayEST());
     setShowSeasonManager(true);
+  };
+
+  const saveSeasonStartDate = () => {
+    if (!seasonStartInput) {
+      showModal('Invalid Date', 'Please choose a start date.', 'alert');
+      return;
+    }
+    const today = getTodayEST();
+    if (seasonStartInput > today) {
+      showModal('Invalid Date', 'Start date cannot be in the future.', 'alert');
+      return;
+    }
+    const seasonKey = `season${currentSeason}`;
+    setSeasonStartDate(seasonStartInput);
+    localStorage.setItem(`hyyerr_season_start_${seasonKey}`, seasonStartInput);
+    showModal('Start Date Updated', `Season ${currentSeason} now starts on ${formatDate(seasonStartInput)}. Any days from that date onward will show up in the calendar and season stats.`, 'info');
   };
 
   const startEdit = (date, points) => {
@@ -1523,6 +1541,30 @@ export default function App() {
                     Season {s}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="pt-4 pb-4 border-t border-white/10">
+              <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">
+                Season {currentSeason} Start Date
+              </div>
+              <p className="text-gray-500 text-xs mb-3 leading-relaxed">
+                Backdate this if tracking started after the season actually began, so those earlier days show up on the calendar and in your stats.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={seasonStartInput}
+                  onChange={(e) => setSeasonStartInput(e.target.value)}
+                  max={getTodayEST()}
+                  className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                />
+                <button
+                  onClick={saveSeasonStartDate}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
+                >
+                  Save Date
+                </button>
               </div>
             </div>
 
