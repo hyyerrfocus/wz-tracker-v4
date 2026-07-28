@@ -5,6 +5,7 @@ import {
   Info, ExternalLink, BookOpen, Gamepad2, MessageCircle, HelpCircle,
   Layers, Gift, Plus, Clock, FileSpreadsheet, FlagOff
 } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 // [INSTRUCTION]: Uncomment this line for your GitHub/Vercel build
 // import './styles/quests.css';
@@ -2015,6 +2016,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
